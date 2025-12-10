@@ -16,6 +16,10 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
         yearCount: {},  // For kullbalanse
         positionCount: {} // For posisjonsbalanse
     }));
+    // Beregn tillatte lagstørrelser
+    const totalPlayers = selectedPlayers.length;
+    const minSize = Math.floor(totalPlayers / numberOfTeams);
+    const maxSize = minSize + 1;
 
 
     /* -----------------------------------------------------
@@ -135,6 +139,11 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
         // Velg spillere å bytte
         let p1 = teams[t1].players[Math.floor(Math.random() * teams[t1].players.length)];
         let p2 = teams[t2].players[Math.floor(Math.random() * teams[t2].players.length)];
+		
+		// Sjekk lagstørrelser før bytte
+        if (teams[t1].players.length <= minSize && teams[t2].players.length >= maxSize) continue;
+        if (teams[t2].players.length <= minSize && teams[t1].players.length >= maxSize) continue;
+
 
         // Ikke bytt keeper med ikke-keeper (stabilitet)
         if (p1.positions.includes("Keeper") && !p2.positions.includes("Keeper")) continue;
@@ -148,6 +157,20 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
 
         // Oppdater
         teams.forEach(updateTeamStats);
+		
+		// Avbryt hvis lagstørrelser brytes
+        if (teams[t1].players.length > maxSize || teams[t2].players.length > maxSize) {
+
+        // Reverser bytte
+        teams[t1].players = teams[t1].players.filter(p => p !== p2);
+        teams[t2].players = teams[t2].players.filter(p => p !== p1);
+        teams[t1].players.push(p1);
+        teams[t2].players.push(p2);
+
+        teams.forEach(updateTeamStats);
+        continue;
+}
+
 
         let newCost = totalBalanceCost(teams);
 
