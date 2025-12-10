@@ -137,23 +137,27 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
         if (t1 === t2) continue;
 
         // Velg spillere å bytte
-        let p1 = teams[t1].players[Math.floor(Math.random() * teams[t1].players.length)];
-        let p2 = teams[t2].players[Math.floor(Math.random() * teams[t2].players.length)];
-		
-		// Sjekk lagstørrelser før bytte
-        if (teams[t1].players.length <= minSize && teams[t2].players.length >= maxSize) continue;
-        if (teams[t2].players.length <= minSize && teams[t1].players.length >= maxSize) continue;
+let p1 = teams[t1].players[Math.floor(Math.random() * teams[t1].players.length)];
+let p2 = teams[t2].players[Math.floor(Math.random() * teams[t2].players.length)];
 
+// Sjekk lagstørrelser før bytte
+if (teams[t1].players.length <= minSize && teams[t2].players.length >= maxSize) continue;
+if (teams[t2].players.length <= minSize && teams[t1].players.length >= maxSize) continue;
 
-        // Ikke bytt keeper med ikke-keeper (stabilitet)
-        if (p1.positions.includes("Keeper") && !p2.positions.includes("Keeper")) continue;
-        if (p2.positions.includes("Keeper") && !p1.positions.includes("Keeper")) continue;
+// FULL KAPASITETSKONTROLL – ingen lag kan miste eller få en spiller ulovlig
 
-        // Gjør bytte
-        teams[t1].players = teams[t1].players.filter(p => p !== p1);
-        teams[t2].players = teams[t2].players.filter(p => p !== p2);
-        teams[t1].players.push(p2);
-        teams[t2].players.push(p1);
+if (teams[t1].players.length - 1 < minSize) continue; // t1 kan ikke miste en spiller
+if (teams[t2].players.length - 1 < minSize) continue; // t2 kan ikke miste en spiller
+
+if (teams[t1].players.length + 1 > maxSize) continue; // t1 kan ikke få for mange
+if (teams[t2].players.length + 1 > maxSize) continue; // t2 kan ikke få for mange
+
+// Gjør bytte
+teams[t1].players = teams[t1].players.filter(p => p !== p1);
+teams[t2].players = teams[t2].players.filter(p => p !== p2);
+teams[t1].players.push(p2);
+teams[t2].players.push(p1);
+
 
         // Oppdater
         teams.forEach(updateTeamStats);
