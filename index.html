@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LagShuffler</title>
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- iOS PWA støtte -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="LagShuffler">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Tema: auto (lys/mørk) -->
+    <meta name="color-scheme" content="light dark">
+</head>
+
+<body>
+
+    <!-- TOPPMENY (tekstbasert) -->
+    <header class="top-nav">
+        <nav>
+            <ul>
+                <li data-section="dashboard" class="active">Dashboard</li>
+                <li data-section="players">Spillere</li>
+                <li data-section="teams">Lag</li>
+                <li data-section="history">Historikk</li>
+                <li data-section="settings">Innstillinger</li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- HOVEDINNHOLD -->
+    <main>
+
+        <!-- DASHBOARD -->
+        <section id="dashboard" class="app-section visible">
+            <h1>LagShuffler</h1>
+            <p>Velkommen! Velg seksjon i menyen for å starte.</p>
+            <button id="goToTeams">Lag nye lag</button>
+        </section>
+
+        <!-- SPILLERE -->
+        <section id="players" class="app-section hidden">
+            <h2>Spillere</h2>
+            <div id="playerList"></div>
+            <button id="addPlayerBtn">Legg til spiller</button>
+        </section>
+
+        <!-- LAGGENERERING -->
+        <section id="teams" class="app-section hidden">
+            <h2>Laggenerator</h2>
+
+            <label for="teamCount">Antall lag:</label>
+            <select id="teamCount">
+                <option value="2">2 lag</option>
+                <option value="3">3 lag</option>
+                <option value="4">4 lag</option>
+            </select>
+
+            <h3>Velg deltakere</h3>
+            <div id="participantList"></div>
+
+            <button id="generateTeamsBtn">Generer lag</button>
+
+            <div id="generatedTeams"></div>
+        </section>
+
+        <!-- HISTORIKK -->
+        <section id="history" class="app-section hidden">
+            <h2>Historikk</h2>
+            <div id="historyList"></div>
+        </section>
+
+        <!-- INNSTILLINGER -->
+        <section id="settings" class="app-section hidden">
+            <h2>Innstillinger</h2>
+
+            <div class="setting-item">
+                <label for="allowSameTeamKeepers">
+                    Tillat keepere på samme lag:
+                </label>
+                <input type="checkbox" id="allowSameTeamKeepers">
+            </div>
+
+            <div class="setting-item">
+                <label for="weightFoot">Vekt på fotpreferanse:</label>
+                <input type="range" id="weightFoot" min="0" max="1" step="0.05" value="0.15">
+            </div>
+
+            <div class="setting-item">
+                <label for="weightCohort">Vekt på kullbalanse:</label>
+                <input type="range" id="weightCohort" min="0" max="1" step="0.05" value="0.4">
+            </div>
+
+            <button id="resetDataBtn">Nullstill appdata</button>
+        </section>
+
+    </main>
+
+    <!-- APP JS -->
+    <script src="players.js"></script>
+    <script src="generator.js"></script>
+    <script src="app.js"></script>
+
+</body>
+</html>
