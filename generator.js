@@ -1,174 +1,120 @@
-// generator.js – ENDLIG KORREKT STABIL VERSJON
-// Ingen duplikater – alltid korrekt balanse – kun første posisjon teller
+// Ny forbedret generator.js
+// Posisjon > Nivå > Kull
+// Primærposisjon sterkest, sekundærposisjon fallback
 
-// IDEAL 7v7-FORMASJON: 3–2–1 + keeper
-const IDEAL = {
-    "Keeper": 1,
-    "Forsvar": 3,
-    "Midtbane": 2,
-    "Spiss": 1
-};
+function generateTeams(selectedPlayers) {
 
-function generateTeams(selectedPlayers, numberOfTeams, settings) {
+    // To lag (fast)
+    const teams = [
+        { players: [], posCount: { Keeper: 0, Forsvar: 0, Midtbane: 0, Spiss: 0 }, level: 0 },
+        { players: [], posCount: { Keeper: 0, Forsvar: 0, Midtbane: 0, Spiss: 0 }, level: 0 }
+    ];
 
-    // ---- VEKTER ----
-    settings = Object.assign({
-        weightPosition: 25,
-        weightLevel: 35,
-        weightCohort: 15
-    }, settings || {});
+    // Høyere vekter (nivå nesten like viktig som posisjon)
+    const weightPosition = 30;
+    const weightLevel = 25;
+    const weightCohort = 5;
 
-    // ---- OPPRETT LAG ----
-    const teams = Array.from({ length: numberOfTeams }, () => ({
-        players: [],
-        positionCount: {},
-        yearCount: {},
-        levelSum: 0
-    }));
+    // Shuffle spillere for naturlig variasjon
+    const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5);
 
-    // ---- LAGSTØRRELSE ----
-    const totalPlayers = selectedPlayers.length;
-    const minSize = Math.floor(totalPlayers / numberOfTeams);
-    const maxSize = minSize;
+    // Finn posisjonsforskjell mellom lag
+    function posDiff(teamIndex, pos, teamAdjust = 0) {
+        const tA = teamIndex;
+        const tB = 1 - teamIndex;
+        return Math.abs((teams[tA].posCount[pos] + teamAdjust) - teams[tB].posCount[pos]);
+    }
 
-    // ---- ALLTID START MED TOMME LAG ----
-    teams.forEach(t => t.players = []);
+    // Kan en spiller plasseres på dette laget?
+    function canPlace(player, teamIndex) {
+        const team = teams[teamIndex];
+        const pos1 = player.posisjon[0];
+        const pos2 = player.posisjon[1];
 
-    // ----------------------------------------------------
-    // 1. FORDEL SPILLERE KUN BASERT PÅ FØRSTE POSISJON
-    // ----------------------------------------------------
-    const posGroups = {
-        "Keeper": [],
-        "Forsvar": [],
-        "Midtbane": [],
-        "Spiss": []
-    };
+        // Test primærposisjon
+        if (posDiff(teamIndex, pos1, +1) <= 1) return pos1;
 
-    selectedPlayers.forEach(p => {
-        const mainPos = p.positions[0];   // KUN FØRSTE POSISJON
-        posGroups[mainPos].push(p);
-    });
+        // Test sekundærposisjon hvis finnes
+        if (pos2 && posDiff(teamIndex, pos2, +1) <= 1) return pos2;
 
-    // Formasjonsrekkefølge
-const order = ["Keeper", "Forsvar", "Midtbane", "Spiss"];
+        return null;
+    }
 
-function distribute(group) {
-    let ti = 0;
+    // Hovedfordeling
+    for (const player of shuffled) {
 
-    group.forEach(player => {
-        // Finn første lag som IKKE er fullt
-        while (teams[ti].players.length >= maxSize) {
-            ti = (ti + 1) % numberOfTeams;
+        // Først: prøv lag 1
+        let pos = canPlace(player, 0);
+        if (pos) {
+            teams[0].players.push(player);
+            teams[0].posCount[pos]++;
+            teams[0].level += player.level;
+            continue;
         }
 
-        // Legg spiller i lag ti
-        teams[ti].players.push(player);
+        // Deretter: prøv lag 2
+        pos = canPlace(player, 1);
+        if (pos) {
+            teams[1].players.push(player);
+            teams[1].posCount[pos]++;
+            teams[1].level += player.level;
+            continue;
+        }
 
-        // Gå til neste lag
-        ti = (ti + 1) % numberOfTeams;
-    });
-}
-
-
-    order.forEach(pos => distribute(posGroups[pos]));
-
-    // ----------------------------------------------------
-    // 2. OPPDATER STATISTIKK
-    // ----------------------------------------------------
-    function updateStats(team) {
-        team.positionCount = {};
-        team.yearCount = {};
-        team.levelSum = 0;
-
-        team.players.forEach(p => {
-            const pos = p.positions[0]; // første posisjon
-            team.positionCount[pos] = (team.positionCount[pos] || 0) + 1;
-
-            team.yearCount[p.year] = (team.yearCount[p.year] || 0) + 1;
-            team.levelSum += p.level;
-        });
+        // Siste utvei: legg til laget med færrest spillere
+        const t = teams[0].players.length <= teams[1].players.length ? 0 : 1;
+        const fallback = player.posisjon[0];
+        teams[t].players.push(player);
+        teams[t].posCount[fallback]++;
+        teams[t].level += player.level;
     }
 
-    teams.forEach(updateStats);
-
-    // ----------------------------------------------------
-    // 3. COST-FUNKSJON
-    // ----------------------------------------------------
-    function totalCost(teams) {
-        let cost = 0;
-
-        // Posisjonsbalanse (viktigst)
-        Object.keys(IDEAL).forEach(pos => {
-            const counts = teams.map(t => t.positionCount[pos] || 0);
-            const diff = Math.max(...counts) - Math.min(...counts);
-            cost += diff * settings.weightPosition;
-        });
-
-        // Nivåbalanse
-        const avgs = teams.map(t => t.levelSum / t.players.length);
-        cost += (Math.max(...avgs) - Math.min(...avgs)) * settings.weightLevel;
-
-        // Kullbalanse
-        const yearAvg = teams.map(t =>
-            t.players.reduce((a, b) => a + b.year, 0) / t.players.length
-        );
-        cost += (Math.max(...yearAvg) - Math.min(...yearAvg)) * settings.weightCohort;
-
-        return cost;
-    }
-
-    let bestCost = totalCost(teams);
-
-    // ----------------------------------------------------
-    // 4. OPTIMALISERING (SWAPS)
-    // ----------------------------------------------------
-    const MAX_ITER = 4000;
-
-    for (let i = 0; i < MAX_ITER; i++) {
-
-        const t1 = Math.floor(Math.random() * numberOfTeams);
-        const t2 = Math.floor(Math.random() * numberOfTeams);
-        if (t1 === t2) continue;
+    // Etterfordeling: balanser nivå med en lett swap-runde
+    for (let i = 0; i < 2000; i++) {
+        const t1 = Math.random() < 0.5 ? 0 : 1;
+        const t2 = 1 - t1;
 
         if (teams[t1].players.length === 0 || teams[t2].players.length === 0) continue;
 
         const p1 = teams[t1].players[Math.floor(Math.random() * teams[t1].players.length)];
         const p2 = teams[t2].players[Math.floor(Math.random() * teams[t2].players.length)];
 
-        // Kapasitetsregler
-        if (teams[t1].players.length - 1 < minSize) continue;
-        if (teams[t2].players.length - 1 < minSize) continue;
-        if (teams[t1].players.length + 1 > maxSize) continue;
-        if (teams[t2].players.length + 1 > maxSize) continue;
+        // Test at posisjon ikke brytes
+        const pos1A = p1.posisjon[0];
+        const pos2A = p2.posisjon[0];
 
-        // Utfør bytte
-        teams[t1].players = teams[t1].players.filter(x => x !== p1);
-        teams[t2].players = teams[t2].players.filter(x => x !== p2);
+        // Swap konsekvens
+        if (posDiff(t1, pos1A, -1) > 1) continue;
+        if (posDiff(t2, pos2A, -1) > 1) continue;
+        if (posDiff(t1, pos2A, +1) > 1) continue;
+        if (posDiff(t2, pos1A, +1) > 1) continue;
+
+        // Utfør swap
+        teams[t1].players.splice(teams[t1].players.indexOf(p1), 1);
+        teams[t2].players.splice(teams[t2].players.indexOf(p2), 1);
         teams[t1].players.push(p2);
         teams[t2].players.push(p1);
 
-        teams.forEach(updateStats);
+        // Oppdater nivå
+        teams[t1].level = teams[t1].players.reduce((a, b) => a + b.level, 0);
+        teams[t2].level = teams[t2].players.reduce((a, b) => a + b.level, 0);
 
-        const newCost = totalCost(teams);
+        // Kun behold swaps som gir bedre nivåbalanse
+        const diffBefore = Math.abs((teams[t1].level + p1.level - p2.level) -
+                                    (teams[t2].level + p2.level - p1.level));
+        const diffAfter  = Math.abs(teams[t1].level - teams[t2].level);
 
-        if (newCost <= bestCost) {
-            bestCost = newCost;
-        } else {
-            // Reverser
-            teams[t1].players = teams[t1].players.filter(x => x !== p2);
-            teams[t2].players = teams[t2].players.filter(x => x !== p1);
+        if (diffAfter > diffBefore) {
+            // Reverser om det ble verre
+            teams[t1].players.splice(teams[t1].players.indexOf(p2), 1);
+            teams[t2].players.splice(teams[t2].players.indexOf(p1), 1);
             teams[t1].players.push(p1);
             teams[t2].players.push(p2);
-            teams.forEach(updateStats);
+
+            teams[t1].level = teams[t1].players.reduce((a, b) => a + b.level, 0);
+            teams[t2].level = teams[t2].players.reduce((a, b) => a + b.level, 0);
         }
     }
 
-    // ----------------------------------------------------
-    // 5. RETURNER
-    // ----------------------------------------------------
-    return teams.map((team, index) => ({
-        teamNumber: index + 1,
-        players: team.players,
-        score: totalCost([team])
-    }));
+    return teams;
 }
