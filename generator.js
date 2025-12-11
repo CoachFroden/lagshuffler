@@ -29,7 +29,7 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
     // ---- LAGSTØRRELSE ----
     const totalPlayers = selectedPlayers.length;
     const minSize = Math.floor(totalPlayers / numberOfTeams);
-    const maxSize = minSize + 1;
+    const maxSize = minSize;
 
     // ---- ALLTID START MED TOMME LAG ----
     teams.forEach(t => t.players = []);
