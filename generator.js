@@ -135,5 +135,19 @@ function generateTeams(selectedPlayers) {
         }
     }
 
-    return teams;
+// Format for UI (app.js expects: teamName, score, players[])
+// Format for UI (app.js expects: teamName, score, players[])
+return [
+    {
+        teamName: "Lag 1",
+        score: teams[0].level,
+        players: teams[0].players
+    },
+    {
+        teamName: "Lag 2",
+        score: teams[1].level,
+        players: teams[1].players
+    }
+];
 }
+
