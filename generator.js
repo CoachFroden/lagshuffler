@@ -52,23 +52,23 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
     // Formasjonsrekkefølge
 const order = ["Keeper", "Forsvar", "Midtbane", "Spiss"];
 
-    function distribute(group) {
-        let ti = 0;
-        group.forEach(player => {
-            if (teams[ti].players.length < maxSize) {
-                teams[ti].players.push(player);
-            } else {
-                // Hvis et lag er fullt, gå til neste
-                for (let j = 0; j < numberOfTeams; j++) {
-                    if (teams[j].players.length < maxSize) {
-                        teams[j].players.push(player);
-                        break;
-                    }
-                }
-            }
+function distribute(group) {
+    let ti = 0;
+
+    group.forEach(player => {
+        // Finn første lag som IKKE er fullt
+        while (teams[ti].players.length >= maxSize) {
             ti = (ti + 1) % numberOfTeams;
-        });
-    }
+        }
+
+        // Legg spiller i lag ti
+        teams[ti].players.push(player);
+
+        // Gå til neste lag
+        ti = (ti + 1) % numberOfTeams;
+    });
+}
+
 
     order.forEach(pos => distribute(posGroups[pos]));
 
