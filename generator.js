@@ -1,154 +1,133 @@
-// Improved generator.js
-// Compatible with players.js (positions: ["Midtbane","Forsvar"])
-// Position > Level > Cohort
-// Primary position strongest, secondary used if needed
+// -----------------------------
+// CONFIG
+// -----------------------------
 
-function generateTeams(selectedPlayers) {
+const POSITION_WEIGHT = 10;      // Posisjon viktigst
+const SKILL_WEIGHT = 8;          // Nivå nesten like sterkt som posisjon
+const BALANCE_WEIGHT = 4;        // Hvor viktig det er at lagene har lik størrelse
 
-    const teams = [
-        { players: [], posCount: { Keeper: 0, Forsvar: 0, Midtbane: 0, Spiss: 0 }, level: 0 },
-        { players: [], posCount: { Keeper: 0, Forsvar: 0, Midtbane: 0, Spiss: 0 }, level: 0 }
-    ];
+// -----------------------------
+// HELPER FUNCTIONS
+// -----------------------------
 
-    // Balancing weights
-    const weightPosition = 30;
-    const weightLevel = 25;
-    const weightCohort = 5;
-
-    // Randomize input
-    const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5);
-
-    // Reads primary and secondary positions safely
-    function readPositions(player) {
-        const pos1 = player.positions && player.positions.length > 0
-            ? player.positions[0]
-            : "Midtbane";
-
-        const pos2 = player.positions && player.positions.length > 1
-            ? player.positions[1]
-            : null;
-
-        return { pos1, pos2 };
-    }
-
-    // Count difference if a player is placed on a given team
-    function posDiff(teamIndex, pos, adjust = 0) {
-        const tA = teamIndex;
-        const tB = 1 - teamIndex;
-        return Math.abs((teams[tA].posCount[pos] + adjust) - teams[tB].posCount[pos]);
-    }
-
-    // Check if player can be placed on team
-    function canPlace(player, teamIndex) {
-        const { pos1, pos2 } = readPositions(player);
-
-        // Try primary position
-        if (posDiff(teamIndex, pos1, +1) <= 1) return pos1;
-
-        // Try secondary position
-        if (pos2 && posDiff(teamIndex, pos2, +1) <= 1) return pos2;
-
-        // Reject if neither work
-        return null;
-    }
-
-    //
-    // --------- MAIN DISTRIBUTION ---------
-    //
-    for (const player of shuffled) {
-
-        // Try team 1
-        let pos = canPlace(player, 0);
-        if (pos) {
-            teams[0].players.push(player);
-            teams[0].posCount[pos]++;
-            teams[0].level += player.level;
-            continue;
-        }
-
-        // Try team 2
-        pos = canPlace(player, 1);
-        if (pos) {
-            teams[1].players.push(player);
-            teams[1].posCount[pos]++;
-            teams[1].level += player.level;
-            continue;
-        }
-
-        // Last fallback: place on team with fewest players
-        const fallbackTeam = teams[0].players.length <= teams[1].players.length ? 0 : 1;
-        const { pos1 } = readPositions(player);
-
-        teams[fallbackTeam].players.push(player);
-        teams[fallbackTeam].posCount[pos1]++;
-        teams[fallbackTeam].level += player.level;
-    }
-
-    //
-    // --------- LEVEL BALANCING (SOFT SWAP) ---------
-    //
-    // --------- LEVEL BALANCING (IMPROVED SOFT SWAP) ---------
-for (let i = 0; i < 3000; i++) {
-
-    const t1 = Math.random() < 0.5 ? 0 : 1;
-    const t2 = 1 - t1;
-
-    if (teams[t1].players.length === 0 || teams[t2].players.length === 0) continue;
-
-    const p1 = teams[t1].players[Math.floor(Math.random() * teams[t1].players.length)];
-    const p2 = teams[t2].players[Math.floor(Math.random() * teams[t2].players.length)];
-
-    const { pos1: p1pos } = readPositions(p1);
-    const { pos1: p2pos } = readPositions(p2);
-
-    // Check positional stability
-    if (posDiff(t1, p1pos, -1) > 1) continue;
-    if (posDiff(t2, p2pos, -1) > 1) continue;
-    if (posDiff(t1, p2pos, +1) > 1) continue;
-    if (posDiff(t2, p1pos, +1) > 1) continue;
-
-    // Calculate level before swap
-    const before =
-        Math.abs(teams[t1].level - teams[t2].level);
-
-    // Perform swap
-    teams[t1].players.splice(teams[t1].players.indexOf(p1), 1);
-    teams[t2].players.splice(teams[t2].players.indexOf(p2), 1);
-    teams[t1].players.push(p2);
-    teams[t2].players.push(p1);
-
-    teams[t1].level = teams[t1].players.reduce((a, b) => a + b.level, 0);
-    teams[t2].level = teams[t2].players.reduce((a, b) => a + b.level, 0);
-
-    const after =
-        Math.abs(teams[t1].level - teams[t2].level);
-
-    // Revert if worse
-    if (after > before) {
-        teams[t1].players.splice(teams[t1].players.indexOf(p2), 1);
-        teams[t2].players.splice(teams[t2].players.indexOf(p1), 1);
-        teams[t1].players.push(p1);
-        teams[t2].players.push(p2);
-
-        teams[t1].level = teams[t1].players.reduce((a, b) => a + b.level, 0);
-        teams[t2].level = teams[t2].players.reduce((a, b) => a + b.level, 0);
-    }
+function calculateTeamScore(team) {
+    return team.reduce((sum, p) => sum + (p.nivaa || 0), 0);
 }
 
-
-// Format for UI (app.js expects: teamName, score, players[])
-// Format for UI (app.js expects: teamName, score, players[])
-return [
-    {
-        teamName: "Lag 1",
-        score: teams[0].level,
-        players: teams[0].players
-    },
-    {
-        teamName: "Lag 2",
-        score: teams[1].level,
-        players: teams[1].players
-    }
-];
+function countPosition(team, pos) {
+    return team.filter(p => p.posisjon.includes(pos)).length;
 }
 
+function positionScore(teamA, teamB) {
+    const positions = ["Keeper", "Forsvar", "Midtbane", "Spiss"];
+    let score = 0;
+
+    for (const pos of positions) {
+        const diff = Math.abs(countPosition(teamA, pos) - countPosition(teamB, pos));
+        score += diff * POSITION_WEIGHT;
+    }
+
+    return score;
+}
+
+function skillScore(teamA, teamB) {
+    const scoreA = calculateTeamScore(teamA);
+    const scoreB = calculateTeamScore(teamB);
+    return Math.abs(scoreA - scoreB) * SKILL_WEIGHT;
+}
+
+function sizeScore(teamA, teamB) {
+    return Math.abs(teamA.length - teamB.length) * BALANCE_WEIGHT;
+}
+
+function totalScore(teamA, teamB) {
+    return positionScore(teamA, teamB) + skillScore(teamA, teamB) + sizeScore(teamA, teamB);
+}
+
+// -----------------------------
+// GENERATE INITIAL TEAMS
+// -----------------------------
+
+function generateInitialTeams(players) {
+    let keepers = players.filter(p => p.posisjon.includes("Keeper"));
+    let others = players.filter(p => !p.posisjon.includes("Keeper"));
+
+    // Shuffle others
+    others = others.sort(() => Math.random() - 0.5);
+
+    const mid = Math.floor(players.length / 2);
+    let teamA = [];
+    let teamB = [];
+
+    // Fordel keepere
+    if (keepers.length === 1) {
+        keepers[0].assignedKeeper = true;
+        teamA.push(keepers[0]);
+    } else if (keepers.length >= 2) {
+        keepers[0].assignedKeeper = true;
+        keepers[1].assignedKeeper = true;
+        teamA.push(keepers[0]);
+        teamB.push(keepers[1]);
+    }
+
+    // Fordel resten
+    for (const p of others) {
+        if (teamA.length < mid) teamA.push(p);
+        else teamB.push(p);
+    }
+
+    return { teamA, teamB };
+}
+
+// -----------------------------
+// SWAP ENGINE (OPTIMIZER)
+// -----------------------------
+
+function optimizeTeams(teamA, teamB) {
+    let improved = true;
+    let safety = 0;
+
+    while (improved && safety < 200) {
+        improved = false;
+        safety++;
+
+        for (let i = 0; i < teamA.length; i++) {
+            for (let j = 0; j < teamB.length; j++) {
+
+                // Ikke bytt keepere, de SKAL være 1 per lag
+                if (teamA[i].assignedKeeper || teamB[j].assignedKeeper) continue;
+
+                let newA = [...teamA];
+                let newB = [...teamB];
+
+                [newA[i], newB[j]] = [newB[j], newA[i]];
+
+                if (totalScore(newA, newB) < totalScore(teamA, teamB)) {
+                    teamA = newA;
+                    teamB = newB;
+                    improved = true;
+                }
+            }
+        }
+    }
+
+    return { teamA, teamB };
+}
+
+// -----------------------------
+// PUBLIC MAIN FUNCTION
+// -----------------------------
+
+function generateTeams(players) {
+    let { teamA, teamB } = generateInitialTeams(players);
+    let optimized = optimizeTeams(teamA, teamB);
+
+    return {
+        teamA: optimized.teamA,
+        teamB: optimized.teamB,
+        scoreA: calculateTeamScore(optimized.teamA),
+        scoreB: calculateTeamScore(optimized.teamB)
+    };
+}
+
+window.generateTeams = generateTeams;
