@@ -13,8 +13,8 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
 
     // ---- VEKTER ----
     settings = Object.assign({
-        weightPosition: 30,
-        weightLevel: 32,
+        weightPosition: 25,
+        weightLevel: 35,
         weightCohort: 15
     }, settings || {});
 
