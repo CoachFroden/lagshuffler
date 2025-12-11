@@ -1,5 +1,9 @@
-// generator.js – korrigert versjon – ingen duplikater, posisjon viktigst,
-// multiposisjon starter alltid i første posisjon, formasjon 3–2–1 + keeper
+// generator.js – stabil og korrekt versjon
+// • Ingen duplikater
+// • Bruker kun første posisjon ved grunnfordeling
+// • Posisjon viktigst (3–2–1 formasjon)
+// • Nivå og kull sekundært
+// • Stabil lagstørrelse
 
 const IDEAL_FORMATION = {
     "Keeper": 1,
@@ -27,28 +31,27 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
     const minSize = Math.floor(totalPlayers / numberOfTeams);
     const maxSize = minSize + 1;
 
-    // ---------------------------------------------------
-    // 1. DEL OPP SPILLERE I:
-    //    - singlePos (kun én posisjon)
-    //    - multiPos (flere posisjoner)
-    // ---------------------------------------------------
+    // ----------------------------------------------------
+    // 1. GRUNNFORDELING – KUN FØRSTE POSISJON TELLER
+    // ----------------------------------------------------
 
-    const singlePos = selectedPlayers.filter(p => p.positions.length === 1);
-    const multiPos = selectedPlayers.filter(p => p.positions.length > 1);
+    const positionGroups = {
+        "Keeper": [],
+        "Forsvar": [],
+        "Midtbane": [],
+        "Spiss": []
+    };
 
-    // Sorter singlePos etter posisjon (Forsvar → Midtbane → Spiss → Keeper)
-    const order = ["Forsvar", "Midtbane", "Spiss", "Keeper"];
-    const singleSorted = [];
-
-    order.forEach(pos => {
-        singleSorted.push(...singlePos.filter(p => p.positions[0] === pos));
+    selectedPlayers.forEach(p => {
+        const mainPos = p.positions[0];   // kun første posisjon
+        positionGroups[mainPos].push(p);
     });
 
-    // ---------------------------------------------------
-    // 2. FORDEL KUN ÉN-POSISJON SSPILLERE FØRST
-    // ---------------------------------------------------
+    // Fordelingsrekkefølge i henhold til 3–2–1 + keeper
+    const posOrder = ["Forsvar", "Midtbane", "Spiss", "Keeper"];
 
-    function distribute(group) {
+    // round-robin
+    function distributeGroup(group) {
         let ti = 0;
         group.forEach(player => {
             teams[ti].players.push(player);
@@ -56,11 +59,11 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
         });
     }
 
-    distribute(singleSorted);
+    posOrder.forEach(pos => distributeGroup(positionGroups[pos]));
 
-    // ---------------------------------------------------
-    // 3. OPPDATER STATS NÅR SINGLEPOS ER PLASSERT
-    // ---------------------------------------------------
+    // ----------------------------------------------------
+    // 2. OPPDATER STATISTIKK
+    // ----------------------------------------------------
 
     function updateTeamStats(team) {
         team.positionCount = {};
@@ -68,54 +71,18 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
         team.levelSum = 0;
 
         team.players.forEach(p => {
-            // nivå
-            team.levelSum += p.level || 0;
-
-            // posisjonscount
-            const mainPos = p.positions[0]; // alltid første posisjon
-            team.positionCount[mainPos] = (team.positionCount[mainPos] || 0) + 1;
-
-            // kull
+            const pos = p.positions[0]; // første posisjon
+            team.positionCount[pos] = (team.positionCount[pos] || 0) + 1;
             team.yearCount[p.year] = (team.yearCount[p.year] || 0) + 1;
+            team.levelSum += p.level || 0;
         });
     }
 
     teams.forEach(updateTeamStats);
 
-    // ---------------------------------------------------
-    // 4. PLASSER MULTIPOSSPILLERE (kun én gang)
-    //    – i første posisjon de har
-    //    – valgt lag = laget som har størst behov for posisjonen
-    // ---------------------------------------------------
-
-    function positionNeed(team, pos) {
-        const actual = team.positionCount[pos] || 0;
-        const ideal = IDEAL_FORMATION[pos] || 0;
-        return Math.max(0, ideal - actual);
-    }
-
-    multiPos.forEach(player => {
-        const mainPos = player.positions[0];
-
-        // finn laget med størst behov for denne posisjonen
-        let bestTeam = 0;
-        let bestNeed = -9999;
-
-        teams.forEach((team, i) => {
-            const need = positionNeed(team, mainPos);
-            if (need > bestNeed && team.players.length < maxSize) {
-                bestNeed = need;
-                bestTeam = i;
-            }
-        });
-
-        teams[bestTeam].players.push(player);
-        updateTeamStats(teams[bestTeam]);
-    });
-
-    // ---------------------------------------------------
-    // 5. OPTIMALISERING (SWAPS)
-    // ---------------------------------------------------
+    // ----------------------------------------------------
+    // 3. COST-FUNKSJON (POSISJON VIKTIGST)
+    // ----------------------------------------------------
 
     function totalCost(teams) {
         let cost = 0;
@@ -123,14 +90,15 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
         // posisjon først
         Object.keys(IDEAL_FORMATION).forEach(pos => {
             const counts = teams.map(t => t.positionCount[pos] || 0);
-            cost += (Math.max(...counts) - Math.min(...counts)) * settings.weightPosition;
+            const diff = Math.max(...counts) - Math.min(...counts);
+            cost += diff * settings.weightPosition;
         });
 
-        // nivå
+        // nivåbalanse
         const avgLevels = teams.map(t => t.levelSum / t.players.length);
         cost += (Math.max(...avgLevels) - Math.min(...avgLevels)) * settings.weightLevel;
 
-        // kull
+        // kullbalanse
         const avgYears = teams.map(t =>
             t.players.reduce((a, b) => a + (b.year || 0), 0) / t.players.length
         );
@@ -141,17 +109,22 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
 
     let currentCost = totalCost(teams);
 
-    const MAX_IT = 4000;
-    for (let i = 0; i < MAX_IT; i++) {
+    // ----------------------------------------------------
+    // 4. OPTIMALISERING – BYTTER BAG RUNDT
+    // ----------------------------------------------------
 
-        const t1 = Math.random() * numberOfTeams | 0;
-        const t2 = Math.random() * numberOfTeams | 0;
+    const MAX_ITER = 4500;
+
+    for (let i = 0; i < MAX_ITER; i++) {
+
+        const t1 = Math.floor(Math.random() * numberOfTeams);
+        const t2 = Math.floor(Math.random() * numberOfTeams);
         if (t1 === t2) continue;
 
         if (teams[t1].players.length === 0 || teams[t2].players.length === 0) continue;
 
-        const p1 = teams[t1].players[Math.random() * teams[t1].players.length | 0];
-        const p2 = teams[t2].players[Math.random() * teams[t2].players.length | 0];
+        const p1 = teams[t1].players[Math.floor(Math.random() * teams[t1].players.length)];
+        const p2 = teams[t2].players[Math.floor(Math.random() * teams[t2].players.length)];
 
         // kapasitet
         if (teams[t1].players.length - 1 < minSize) continue;
@@ -159,7 +132,7 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
         if (teams[t1].players.length + 1 > maxSize) continue;
         if (teams[t2].players.length + 1 > maxSize) continue;
 
-        // bytt
+        // utfør bytte
         teams[t1].players = teams[t1].players.filter(p => p !== p1);
         teams[t2].players = teams[t2].players.filter(p => p !== p2);
         teams[t1].players.push(p2);
@@ -168,20 +141,25 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
         teams.forEach(updateTeamStats);
 
         const newCost = totalCost(teams);
-        if (newCost > currentCost) {
+
+        if (newCost <= currentCost) {
+            currentCost = newCost;
+        } else {
             // reverser
             teams[t1].players = teams[t1].players.filter(p => p !== p2);
             teams[t2].players = teams[t2].players.filter(p => p !== p1);
             teams[t1].players.push(p1);
             teams[t2].players.push(p2);
             teams.forEach(updateTeamStats);
-        } else {
-            currentCost = newCost;
         }
     }
 
-    return teams.map((team, i) => ({
-        teamNumber: i + 1,
+    // ----------------------------------------------------
+    // 5. RETURNER
+    // ----------------------------------------------------
+
+    return teams.map((team, index) => ({
+        teamNumber: index + 1,
         players: team.players,
         score: totalCost([team])
     }));
