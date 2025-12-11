@@ -7,6 +7,34 @@ const SKILL_WEIGHT = 5;       // Nivå nesten like viktig
 const BALANCE_WEIGHT = 4;     // Lik lagstørrelse viktig
 
 // -----------------------------
+// FAILSAFE PLAYER VALIDATION
+// -----------------------------
+
+function sanitizePlayers(players) {
+    return players.map(p => {
+        // navn fallback
+        if (!p.name) {
+            console.warn("Spiller mangler navn. Setter 'Ukjent'.", p);
+            p.name = "Ukjent spiller";
+        }
+
+        // nivaa fallback
+        if (typeof p.nivaa !== "number") {
+            console.warn("Spiller mangler nivaa. Setter 1.", p);
+            p.nivaa = 1;
+        }
+
+        // positions fallback
+        if (!Array.isArray(p.positions)) {
+            console.warn("Spiller mangler positions-array. Setter tom.", p);
+            p.positions = [];
+        }
+
+        return p;
+    });
+}
+
+// -----------------------------
 // HJELPEFUNKSJONER
 // -----------------------------
 
@@ -15,19 +43,19 @@ function calculateTeamScore(team) {
 }
 
 function countPosition(team, pos) {
-    return team.filter(p => p.positions && p.positions.includes(pos)).length;
+    return team.filter(p => Array.isArray(p.positions) && p.positions.includes(pos)).length;
 }
 
 function positionScore(teamA, teamB) {
-    const positions = ["Keeper", "Forsvar", "Midtbane", "Spiss"];
-    let score = 0;
+    const posTypes = ["Keeper", "Forsvar", "Midtbane", "Spiss"];
+    let total = 0;
 
-    for (const pos of positions) {
+    for (const pos of posTypes) {
         const diff = Math.abs(countPosition(teamA, pos) - countPosition(teamB, pos));
-        score += diff * POSITION_WEIGHT;
+        total += diff * POSITION_WEIGHT;
     }
 
-    return score;
+    return total;
 }
 
 function skillScore(teamA, teamB) {
@@ -41,11 +69,7 @@ function sizeScore(teamA, teamB) {
 }
 
 function totalScore(teamA, teamB) {
-    return (
-        positionScore(teamA, teamB) +
-        skillScore(teamA, teamB) +
-        sizeScore(teamA, teamB)
-    );
+    return positionScore(teamA, teamB) + skillScore(teamA, teamB) + sizeScore(teamA, teamB);
 }
 
 // -----------------------------
@@ -53,16 +77,17 @@ function totalScore(teamA, teamB) {
 // -----------------------------
 
 function generateInitialTeams(players) {
-    // Fordel keepere
-    let keepers = players.filter(p => p.positions && p.positions.includes("Keeper"));
-    let others = players.filter(p => !(p.positions && p.positions.includes("Keeper")));
+    const sanitized = sanitizePlayers(players);
 
-    others = others.sort(() => Math.random() - 0.5);
+    const keepers = sanitized.filter(p => p.positions.includes("Keeper"));
+    const others  = sanitized.filter(p => !p.positions.includes("Keeper"))
+                            .sort(() => Math.random() - 0.5);
 
     const mid = Math.ceil(players.length / 2);
     let teamA = [];
     let teamB = [];
 
+    // Keeperfordeling
     if (keepers.length === 1) {
         keepers[0].assignedKeeper = true;
         teamA.push(keepers[0]);
@@ -73,7 +98,7 @@ function generateInitialTeams(players) {
         teamB.push(keepers[1]);
     }
 
-    // Fyll på resten
+    // Fyller på
     for (const p of others) {
         if (teamA.length < mid) teamA.push(p);
         else teamB.push(p);
@@ -83,7 +108,7 @@ function generateInitialTeams(players) {
 }
 
 // -----------------------------
-// OPTIMIZATION ENGINE (SWAPS)
+// OPTIMIZATION ENGINE
 // -----------------------------
 
 function optimizeTeams(teamA, teamB) {
@@ -96,12 +121,11 @@ function optimizeTeams(teamA, teamB) {
 
         for (let i = 0; i < teamA.length; i++) {
             for (let j = 0; j < teamB.length; j++) {
+                if (teamA[i].assignedKeeper || teamB[j].assignedKeeper)
+                    continue;
 
-                // Ikke bytt keepere
-                if (teamA[i].assignedKeeper || teamB[j].assignedKeeper) continue;
-
-                let newA = [...teamA];
-                let newB = [...teamB];
+                const newA = [...teamA];
+                const newB = [...teamB];
 
                 [newA[i], newB[j]] = [newB[j], newA[i]];
 
