@@ -1,55 +1,75 @@
-// generator.js – fullstendig korrigert og balansert versjon
+// generator.js – ferdig versjon med posisjonsbalanse + nivåbalanse + kullbalanse
 
 function generateTeams(selectedPlayers, numberOfTeams, settings) {
 
+    // Standard-innstillinger hvis ikke sendt inn
+    settings = Object.assign({
+        weightLevel: 10,
+        weightCohort: 5,
+        weightPosition: 10
+    }, settings || {});
+
+    // Opprett tomme lag
     const teams = Array.from({ length: numberOfTeams }, () => ({
         players: [],
-        score: 0,
         yearCount: {},
         positionCount: {},
+        levelSum: 0,
         keepers: 0
     }));
 
-    // Hent keepere og utespillere
-    // Alle spillere fordeles jevnt – keeper er bare en posisjon
-    const fieldPlayers = selectedPlayers; 
-
-
-    // Beregn min og maks lagstørrelse
     const totalPlayers = selectedPlayers.length;
     const minSize = Math.floor(totalPlayers / numberOfTeams);
     const maxSize = minSize + 1;
 
-    // -----------------------------------------------------
-    // 1) FORDEL ALLE UTESPILLERE HELT JEVNT
-    // -----------------------------------------------------
-    let teamIndex = 0;
-    fieldPlayers.forEach(player => {
-        teams[teamIndex].players.push(player);
-        teamIndex = (teamIndex + 1) % numberOfTeams;
-    });
+    // -------------------------------------------------------
+    // 1) POSISJONSBASERT INITIAL FORDELING
+    // -------------------------------------------------------
 
-    // -----------------------------------------------------
-    // 3) OPPDATER TELLERE
-    // -----------------------------------------------------
+    const keepers = selectedPlayers.filter(p => p.positions.includes("Keeper"));
+    const defenders = selectedPlayers.filter(p => p.positions.includes("Forsvar"));
+    const midfielders = selectedPlayers.filter(p => p.positions.includes("Midtbane"));
+    const forwards = selectedPlayers.filter(p => p.positions.includes("Spiss"));
+
+    function distributeGroup(group) {
+        let ti = 0;
+        group.forEach(player => {
+            teams[ti].players.push(player);
+            ti = (ti + 1) % numberOfTeams;
+        });
+    }
+
+    distributeGroup(keepers);
+    distributeGroup(defenders);
+    distributeGroup(midfielders);
+    distributeGroup(forwards);
+
+    // -------------------------------------------------------
+    // 2) OPPDATER LAGSTATISTIKK
+    // -------------------------------------------------------
 
     function updateTeamStats(team) {
         team.yearCount = {};
         team.positionCount = {};
+        team.levelSum = 0;
         team.keepers = 0;
 
         team.players.forEach(p => {
+            // Kull
             if (p.year) {
                 team.yearCount[p.year] = (team.yearCount[p.year] || 0) + 1;
             }
-
+            // Posisjoner
             if (p.positions) {
                 p.positions.forEach(pos => {
                     team.positionCount[pos] = (team.positionCount[pos] || 0) + 1;
                 });
             }
+            // Nivå
+            team.levelSum += p.level || 0;
 
-            if (p.isKeeper) {
+            // Keeperantall
+            if (p.positions.includes("Keeper")) {
                 team.keepers++;
             }
         });
@@ -57,46 +77,41 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
 
     teams.forEach(updateTeamStats);
 
-    // -----------------------------------------------------
-    // 4) BEREGN LAGBALANSE (COST)
-    // -----------------------------------------------------
+    // -------------------------------------------------------
+    // 3) BALANSEKOST (COST FUNCTION)
+    // -------------------------------------------------------
 
-    function totalBalanceCost(teams) {
+    function totalCost(teams) {
         let cost = 0;
 
-        // nivåbalanse
-        const avgLevels = teams.map(t =>
-            t.players.reduce((a, b) => a + (b.level || 0), 0) / t.players.length
-        );
-        const maxLevel = Math.max(...avgLevels);
-        const minLevel = Math.min(...avgLevels);
-        cost += Math.abs(maxLevel - minLevel) * 10;
+        // NIVÅBALANSE
+        const avgLevels = teams.map(t => t.levelSum / t.players.length);
+        cost += (Math.max(...avgLevels) - Math.min(...avgLevels)) * settings.weightLevel;
 
-        // kullbalanse
-        if (settings.weightCohort > 0) {
-            const avgYears = teams.map(t =>
-                t.players.reduce((a, b) => a + (b.year || 0), 0) / t.players.length
-            );
-            const maxYear = Math.max(...avgYears);
-            const minYear = Math.min(...avgYears);
-            cost += Math.abs(maxYear - minYear) * settings.weightCohort;
-        }
+        // KULLBALANSE
+        const avgYears = teams.map(t =>
+            t.players.reduce((a, b) => a + (b.year || 0), 0) / t.players.length
+        );
+        cost += (Math.max(...avgYears) - Math.min(...avgYears)) * settings.weightCohort;
+
+        // POSISJONSBALANSE
+        const posTypes = ["Keeper", "Forsvar", "Midtbane", "Spiss"];
+        posTypes.forEach(pos => {
+            const counts = teams.map(t => t.positionCount[pos] || 0);
+            cost += (Math.max(...counts) - Math.min(...counts)) * settings.weightPosition;
+        });
 
         return cost;
     }
 
-    let currentCost = totalBalanceCost(teams);
+    let currentCost = totalCost(teams);
 
-    // -----------------------------------------------------
-    // 5) OPTIMALISERINGSMOTOR (MED FULL BALANSEKONTROLL)
-    // -----------------------------------------------------
+    // -------------------------------------------------------
+    // 4) OPTIMALISERINGSMOTOR (SWAPS)
+    // -------------------------------------------------------
 
     const MAX_ITERATIONS = 4000;
-    let iterations = 0;
-
-    while (iterations < MAX_ITERATIONS) {
-        iterations++;
-
+    for (let i = 0; i < MAX_ITERATIONS; i++) {
         let t1 = Math.floor(Math.random() * numberOfTeams);
         let t2 = Math.floor(Math.random() * numberOfTeams);
         if (t1 === t2) continue;
@@ -107,82 +122,58 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
         let p1 = teams[t1].players[Math.floor(Math.random() * teams[t1].players.length)];
         let p2 = teams[t2].players[Math.floor(Math.random() * teams[t2].players.length)];
 
-        // LØPENDE KAPASITETSKONTROLL (før bytte)
+        // KAPASITETSSPERRE
         if (teams[t1].players.length - 1 < minSize) continue;
         if (teams[t2].players.length - 1 < minSize) continue;
         if (teams[t1].players.length + 1 > maxSize) continue;
         if (teams[t2].players.length + 1 > maxSize) continue;
 
-        // -------------------------------------------------
-        // UTFØR BYTTE
-        // -------------------------------------------------
-
+        // Utfør bytte
         teams[t1].players = teams[t1].players.filter(p => p !== p1);
         teams[t2].players = teams[t2].players.filter(p => p !== p2);
+
         teams[t1].players.push(p2);
         teams[t2].players.push(p1);
 
         teams.forEach(updateTeamStats);
 
-        // Sjekk maksSize for trygghet
-        if (teams[t1].players.length > maxSize || teams[t2].players.length > maxSize) {
-
-            // Reverser
-            teams[t1].players = teams[t1].players.filter(p => p !== p2);
-            teams[t2].players = teams[t2].players.filter(p => p !== p1);
-
-            teams[t1].players.push(p1);
-            teams[t2].players.push(p2);
-
-            teams.forEach(updateTeamStats);
-            continue;
-        }
-
-        // ABSOLUTT KAPASITETSKONTROLL – ALLTID JEVNT
-        let invalid = false;
+        // Avvis om kapasiteten ryker
+        let bad = false;
         for (let t = 0; t < numberOfTeams; t++) {
-            if (teams[t].players.length < minSize || teams[t].players.length > maxSize) {
-                invalid = true;
-                break;
-            }
+            if (teams[t].players.length < minSize || teams[t].players.length > maxSize)
+                bad = true;
         }
-
-        if (invalid) {
-            // Reverser bytte
+        if (bad) {
+            // reverser
             teams[t1].players = teams[t1].players.filter(p => p !== p2);
             teams[t2].players = teams[t2].players.filter(p => p !== p1);
             teams[t1].players.push(p1);
             teams[t2].players.push(p2);
-
             teams.forEach(updateTeamStats);
             continue;
         }
 
-        // -------------------------------------------------
-        // VURDÉR FORBEDRING
-        // -------------------------------------------------
-
-        let newCost = totalBalanceCost(teams);
+        // Evaluer kost
+        const newCost = totalCost(teams);
         if (newCost <= currentCost) {
-            currentCost = newCost;
+            currentCost = newCost; // aksepter forbedring
         } else {
-            // Reverser bytte
+            // reverser hvis det ble dårligere
             teams[t1].players = teams[t1].players.filter(p => p !== p2);
             teams[t2].players = teams[t2].players.filter(p => p !== p1);
             teams[t1].players.push(p1);
             teams[t2].players.push(p2);
-
             teams.forEach(updateTeamStats);
         }
     }
 
-    // -----------------------------------------------------
-    // 6) RETURNER RESULTAT
-    // -----------------------------------------------------
+    // -------------------------------------------------------
+    // 5) RETURNER RESULTAT
+    // -------------------------------------------------------
 
-    return teams.map((t, i) => ({
-        teamNumber: i + 1,
-        players: t.players,
-        score: totalBalanceCost([t])
+    return teams.map((team, index) => ({
+        teamNumber: index + 1,
+        players: team.players,
+        score: totalCost([team])
     }));
 }
