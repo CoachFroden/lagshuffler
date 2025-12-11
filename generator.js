@@ -55,11 +55,13 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
        3. GRUNNLEGGENDE FORDELING AV FELTSPLILLERE
           (STERKE SPILLER FØRST, ROUND ROBIN)
     ----------------------------------------------------- */
-    let teamIndex = 0;
-    fieldPlayers.forEach(player => {
-        teams[teamIndex].players.push(player);
-        teamIndex = (teamIndex + 1) % numberOfTeams;
-    });
+    // INITIELL FORDELING AV SPILLERE – MÅ VÆRE HELT JEVE FOR Å FUNKE
+let teamIndex = 0;
+fieldPlayers.forEach(player => {
+    teams[teamIndex].players.push(player);
+    teamIndex = (teamIndex + 1) % numberOfTeams;
+});
+
 
 
     /* -----------------------------------------------------
