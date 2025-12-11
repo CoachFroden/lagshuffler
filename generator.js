@@ -87,53 +87,54 @@ function generateTeams(selectedPlayers) {
     //
     // --------- LEVEL BALANCING (SOFT SWAP) ---------
     //
-    for (let i = 0; i < 2000; i++) {
-        const t1 = Math.random() < 0.5 ? 0 : 1;
-        const t2 = 1 - t1;
+    // --------- LEVEL BALANCING (IMPROVED SOFT SWAP) ---------
+for (let i = 0; i < 3000; i++) {
 
-        if (teams[t1].players.length === 0 || teams[t2].players.length === 0) continue;
+    const t1 = Math.random() < 0.5 ? 0 : 1;
+    const t2 = 1 - t1;
 
-        const p1 = teams[t1].players[Math.floor(Math.random() * teams[t1].players.length)];
-        const p2 = teams[t2].players[Math.floor(Math.random() * teams[t2].players.length)];
+    if (teams[t1].players.length === 0 || teams[t2].players.length === 0) continue;
 
-        const { pos1: pos1A } = readPositions(p1);
-        const { pos1: pos2A } = readPositions(p2);
+    const p1 = teams[t1].players[Math.floor(Math.random() * teams[t1].players.length)];
+    const p2 = teams[t2].players[Math.floor(Math.random() * teams[t2].players.length)];
 
-        // Check if swap breaks position balance
-        if (posDiff(t1, pos1A, -1) > 1) continue;
-        if (posDiff(t2, pos2A, -1) > 1) continue;
-        if (posDiff(t1, pos2A, +1) > 1) continue;
-        if (posDiff(t2, pos1A, +1) > 1) continue;
+    const { pos1: p1pos } = readPositions(p1);
+    const { pos1: p2pos } = readPositions(p2);
 
-        // Store previous levels
-        const oldL1 = teams[t1].level;
-        const oldL2 = teams[t2].level;
+    // Check positional stability
+    if (posDiff(t1, p1pos, -1) > 1) continue;
+    if (posDiff(t2, p2pos, -1) > 1) continue;
+    if (posDiff(t1, p2pos, +1) > 1) continue;
+    if (posDiff(t2, p1pos, +1) > 1) continue;
 
-        // Perform swap
-        teams[t1].players.splice(teams[t1].players.indexOf(p1), 1);
-        teams[t2].players.splice(teams[t2].players.indexOf(p2), 1);
-        teams[t1].players.push(p2);
-        teams[t2].players.push(p1);
+    // Calculate level before swap
+    const before =
+        Math.abs(teams[t1].level - teams[t2].level);
 
-        // Recalculate levels
+    // Perform swap
+    teams[t1].players.splice(teams[t1].players.indexOf(p1), 1);
+    teams[t2].players.splice(teams[t2].players.indexOf(p2), 1);
+    teams[t1].players.push(p2);
+    teams[t2].players.push(p1);
+
+    teams[t1].level = teams[t1].players.reduce((a, b) => a + b.level, 0);
+    teams[t2].level = teams[t2].players.reduce((a, b) => a + b.level, 0);
+
+    const after =
+        Math.abs(teams[t1].level - teams[t2].level);
+
+    // Revert if worse
+    if (after > before) {
+        teams[t1].players.splice(teams[t1].players.indexOf(p2), 1);
+        teams[t2].players.splice(teams[t2].players.indexOf(p1), 1);
+        teams[t1].players.push(p1);
+        teams[t2].players.push(p2);
+
         teams[t1].level = teams[t1].players.reduce((a, b) => a + b.level, 0);
         teams[t2].level = teams[t2].players.reduce((a, b) => a + b.level, 0);
-
-        // If worse → undo swap
-        const beforeDiff = Math.abs((oldL1) - (oldL2));
-        const afterDiff = Math.abs(teams[t1].level - teams[t2].level);
-
-        if (afterDiff > beforeDiff) {
-            // Undo
-            teams[t1].players.splice(teams[t1].players.indexOf(p2), 1);
-            teams[t2].players.splice(teams[t2].players.indexOf(p1), 1);
-            teams[t1].players.push(p1);
-            teams[t2].players.push(p2);
-
-            teams[t1].level = oldL1;
-            teams[t2].level = oldL2;
-        }
     }
+}
+
 
 // Format for UI (app.js expects: teamName, score, players[])
 // Format for UI (app.js expects: teamName, score, players[])
