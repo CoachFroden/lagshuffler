@@ -224,7 +224,7 @@ function renderHistory() {
             ${h.teams
                 .map(t => `
                     <div class="stat">
-                        Lag ${t.teamNumber} – ${t.players.length} spillere – score ${t.score}
+                        ${t.teamName} – ${t.players.length} spillere – score ${t.score}
                     </div>
                 `).join("")}
         `;
@@ -232,6 +232,7 @@ function renderHistory() {
         container.appendChild(div);
     });
 }
+
 
 
 /* ---------------------------------------------------------
