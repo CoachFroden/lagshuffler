@@ -158,25 +158,48 @@ teams[t2].players = teams[t2].players.filter(p => p !== p2);
 teams[t1].players.push(p2);
 teams[t2].players.push(p1);
 
+// Oppdater
+teams.forEach(updateTeamStats);
 
-        // Oppdater
-        teams.forEach(updateTeamStats);
-		
-		// Avbryt hvis lagstørrelser brytes
-        if (teams[t1].players.length > maxSize || teams[t2].players.length > maxSize) {
+// Avbryt hvis lagstørrelser brytes
+if (teams[t1].players.length > maxSize || teams[t2].players.length > maxSize) {
 
-        // Reverser bytte
-        teams[t1].players = teams[t1].players.filter(p => p !== p2);
-        teams[t2].players = teams[t2].players.filter(p => p !== p1);
-        teams[t1].players.push(p1);
-        teams[t2].players.push(p2);
+    // Reverser bytte
+    teams[t1].players = teams[t1].players.filter(p => p !== p2);
+    teams[t2].players = teams[t2].players.filter(p => p !== p1);
+    teams[t1].players.push(p1);
+    teams[t2].players.push(p2);
 
-        teams.forEach(updateTeamStats);
-        continue;
+    teams.forEach(updateTeamStats);
+    continue;
 }
 
+// >>> LIMT INN HER <<<
 
-        let newCost = totalBalanceCost(teams);
+// Absolutt kapasitetskontroll – ingen lag kan havne utenfor min/max
+let invalidSize = false;
+for (let t = 0; t < numberOfTeams; t++) {
+    if (teams[t].players.length < minSize || teams[t].players.length > maxSize) {
+        invalidSize = true;
+        break;
+    }
+}
+
+if (invalidSize) {
+    // Reverser bytte
+    teams[t1].players = teams[t1].players.filter(p => p !== p2);
+    teams[t2].players = teams[t2].players.filter(p => p !== p1);
+    teams[t1].players.push(p1);
+    teams[t2].players.push(p2);
+
+    teams.forEach(updateTeamStats);
+    continue;
+}
+
+// <<< SLUTT PÅ NY KODE >>>
+
+let newCost = totalBalanceCost(teams);
+
 
         if (newCost < bestCost) {
             bestCost = newCost;
