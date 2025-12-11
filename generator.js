@@ -14,8 +14,8 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
     // ---- VEKTER ----
     settings = Object.assign({
         weightPosition: 30,
-        weightLevel: 10,
-        weightCohort: 5
+        weightLevel: 25,
+        weightCohort: 15
     }, settings || {});
 
     // ---- OPPRETT LAG ----
