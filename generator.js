@@ -11,8 +11,9 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
     }));
 
     // Hent keepere og utespillere
-    const keepers = selectedPlayers.filter(p => p.isKeeper === true);
-    const fieldPlayers = selectedPlayers.filter(p => p.isKeeper !== true);
+    // Alle spillere fordeles jevnt – keeper er bare en posisjon
+    const fieldPlayers = selectedPlayers; 
+
 
     // Beregn min og maks lagstørrelse
     const totalPlayers = selectedPlayers.length;
@@ -27,24 +28,6 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
         teams[teamIndex].players.push(player);
         teamIndex = (teamIndex + 1) % numberOfTeams;
     });
-
-    // -----------------------------------------------------
-    // 2) LEGG INN KEEPERE ETTER FORDELINGEN
-    //    (UTEN Å ENDRER TOTAL BALANSE)
-    // -----------------------------------------------------
-
-    if (keepers.length > 0) {
-
-        // Fjern keepere som havnet i lagene under fordeling
-        teams.forEach(t => {
-            t.players = t.players.filter(p => !p.isKeeper);
-        });
-
-        // Sett inn keeper(e) på riktig lag
-        keepers.forEach((keeper, index) => {
-            teams[index % numberOfTeams].players.push(keeper);
-        });
-    }
 
     // -----------------------------------------------------
     // 3) OPPDATER TELLERE
