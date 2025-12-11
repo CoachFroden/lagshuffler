@@ -159,7 +159,7 @@ function renderGeneratedTeams(teams) {
         div.className = `team-block team-${index + 1}`;
 
         div.innerHTML = `
-            <div class="team-title">Lag ${team.teamNumber}</div>
+            <div class="team-title">${team.teamName}</div>
             <div class="stat">Score: ${team.score}</div>
             <div class="team-players">
                 ${team.players
@@ -171,6 +171,7 @@ function renderGeneratedTeams(teams) {
         container.appendChild(div);
     });
 }
+
 
 
 /* ---------------------------------------------------------
