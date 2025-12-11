@@ -50,7 +50,7 @@ function generateTeams(selectedPlayers, numberOfTeams, settings) {
     });
 
     // Formasjonsrekkefølge
-    const order = ["Forsvar", "Midtbane", "Spiss", "Keeper"];
+const order = ["Keeper", "Forsvar", "Midtbane", "Spiss"];
 
     function distribute(group) {
         let ti = 0;
