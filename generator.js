@@ -2,8 +2,8 @@
 // CONFIG
 // -----------------------------
 
-const POSITION_WEIGHT = 10;      // Posisjon viktigst
-const SKILL_WEIGHT = 8;          // Nivå nesten like sterkt som posisjon
+const POSITION_WEIGHT = 25;      // Posisjon viktigst
+const SKILL_WEIGHT = 5;          // Nivå nesten like sterkt som posisjon
 const BALANCE_WEIGHT = 4;        // Hvor viktig det er at lagene har lik størrelse
 
 // -----------------------------
