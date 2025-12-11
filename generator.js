@@ -1,13 +1,13 @@
 // -----------------------------
-// CONFIG
+// KONFIGURASJON
 // -----------------------------
 
-const POSITION_WEIGHT = 25;      // Posisjon viktigst
-const SKILL_WEIGHT = 5;          // Nivå nesten like sterkt som posisjon
-const BALANCE_WEIGHT = 4;        // Hvor viktig det er at lagene har lik størrelse
+const POSITION_WEIGHT = 25;   // Posisjon viktigst
+const SKILL_WEIGHT = 5;       // Nivå nesten like viktig
+const BALANCE_WEIGHT = 4;     // Lik lagstørrelse viktig
 
 // -----------------------------
-// HELPER FUNCTIONS
+// HJELPEFUNKSJONER
 // -----------------------------
 
 function calculateTeamScore(team) {
@@ -15,7 +15,7 @@ function calculateTeamScore(team) {
 }
 
 function countPosition(team, pos) {
-    return team.filter(p => p.posisjon.includes(pos)).length;
+    return team.filter(p => p.positions && p.positions.includes(pos)).length;
 }
 
 function positionScore(teamA, teamB) {
@@ -41,25 +41,28 @@ function sizeScore(teamA, teamB) {
 }
 
 function totalScore(teamA, teamB) {
-    return positionScore(teamA, teamB) + skillScore(teamA, teamB) + sizeScore(teamA, teamB);
+    return (
+        positionScore(teamA, teamB) +
+        skillScore(teamA, teamB) +
+        sizeScore(teamA, teamB)
+    );
 }
 
 // -----------------------------
-// GENERATE INITIAL TEAMS
+// INITIAL TEAM GENERATION
 // -----------------------------
 
 function generateInitialTeams(players) {
-    let keepers = players.filter(p => p.posisjon.includes("Keeper"));
-    let others = players.filter(p => !p.posisjon.includes("Keeper"));
+    // Fordel keepere
+    let keepers = players.filter(p => p.positions && p.positions.includes("Keeper"));
+    let others = players.filter(p => !(p.positions && p.positions.includes("Keeper")));
 
-    // Shuffle others
     others = others.sort(() => Math.random() - 0.5);
 
-    const mid = Math.floor(players.length / 2);
+    const mid = Math.ceil(players.length / 2);
     let teamA = [];
     let teamB = [];
 
-    // Fordel keepere
     if (keepers.length === 1) {
         keepers[0].assignedKeeper = true;
         teamA.push(keepers[0]);
@@ -70,7 +73,7 @@ function generateInitialTeams(players) {
         teamB.push(keepers[1]);
     }
 
-    // Fordel resten
+    // Fyll på resten
     for (const p of others) {
         if (teamA.length < mid) teamA.push(p);
         else teamB.push(p);
@@ -80,7 +83,7 @@ function generateInitialTeams(players) {
 }
 
 // -----------------------------
-// SWAP ENGINE (OPTIMIZER)
+// OPTIMIZATION ENGINE (SWAPS)
 // -----------------------------
 
 function optimizeTeams(teamA, teamB) {
@@ -94,7 +97,7 @@ function optimizeTeams(teamA, teamB) {
         for (let i = 0; i < teamA.length; i++) {
             for (let j = 0; j < teamB.length; j++) {
 
-                // Ikke bytt keepere, de SKAL være 1 per lag
+                // Ikke bytt keepere
                 if (teamA[i].assignedKeeper || teamB[j].assignedKeeper) continue;
 
                 let newA = [...teamA];
@@ -115,7 +118,7 @@ function optimizeTeams(teamA, teamB) {
 }
 
 // -----------------------------
-// PUBLIC MAIN FUNCTION
+// HOVEDFUNKSJON
 // -----------------------------
 
 function generateTeams(players) {
