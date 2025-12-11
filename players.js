@@ -9,7 +9,6 @@ const players = [
     {
         name: "Theodor",
         positions: ["Keeper"],
-		isKeeper: true,
         year: 2013,
         foot: "Høyre",
         level: 7
@@ -77,7 +76,6 @@ const players = [
     {
         name: "Thage",
         positions: ["Keeper"],
-		isKeeper: true,
         year: 2012,
         foot: "Venstre",
         level: 7
