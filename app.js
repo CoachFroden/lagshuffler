@@ -1,265 +1,273 @@
 // app.js
-// Kobler sammen UI, datasett og laggeneratoren for LagShuffler
+// Ansvar: UI + kobling mot generator.js
+// Avhenger av: players.js og generator.js
 
-/* ---------------------------------------------------------
-   GLOBAL STATE
---------------------------------------------------------- */
+console.log("app.js lastet");
 
-let state = {
-    selectedPlayers: [],
-    settings: {
-        allowSameTeamKeepers: false,
-        weightFoot: 0.15,
-        weightCohort: 0.4
-    },
-    history: []
+/* =========================
+   KONFIG
+========================= */
+
+const POSITION_ORDER = {
+  Keeper: 1,
+  Forsvar: 2,
+  Midtbane: 3,
+  Spiss: 4
 };
 
-// Last inn lagrede data fra LocalStorage
-loadLocalData();
-
-
-/* ---------------------------------------------------------
-   NAVIGASJON I TOPPMENY
---------------------------------------------------------- */
-
-const navItems = document.querySelectorAll("header.top-nav li");
-const sections = document.querySelectorAll(".app-section");
-
-navItems.forEach(item => {
-    item.addEventListener("click", () => {
-        const target = item.getAttribute("data-section");
-
-        navItems.forEach(i => i.classList.remove("active"));
-        item.classList.add("active");
-
-        sections.forEach(sec => sec.classList.add("hidden"));
-        document.getElementById(target).classList.remove("hidden");
-    });
-});
-
-// Dashboard-knapp som leder til lagseksjonen
-document.getElementById("goToTeams").addEventListener("click", () => {
-    document.querySelector("li[data-section='teams']").click();
-});
-
-
-/* ---------------------------------------------------------
-   GENERER SPILLERLISTE
---------------------------------------------------------- */
-
-function renderPlayerList() {
-    const container = document.getElementById("playerList");
-    container.innerHTML = "";
-
-    players.forEach(p => {
-        const div = document.createElement("div");
-        div.className = "player-entry";
-
-        div.innerHTML = `
-            <div class="player-info">
-                <strong>${p.name}</strong>
-                <span class="stat">${p.positions.join(", ")}</span>
-                <span class="stat">${p.year} • ${p.foot} • nivå ${p.level}</span>
-            </div>
-        `;
-
-        container.appendChild(div);
-    });
-}
-
-renderPlayerList();
-
-
-/* ---------------------------------------------------------
-   DELTAKERVELGER (checkboxer)
---------------------------------------------------------- */
-
-function renderParticipantList() {
-    const container = document.getElementById("participantList");
-    container.innerHTML = "";
-
-    players.forEach(p => {
-        const id = "check_" + p.name.replace(/\s+/g, "_");
-
-        const div = document.createElement("div");
-        div.className = "participant-entry";
-
-        div.innerHTML = `
-            <label>
-                <input type="checkbox" id="${id}" class="player-checkbox">
-                ${p.name} – nivå ${p.level} – ${p.positions.join("/")}
-            </label>
-        `;
-
-        container.appendChild(div);
-    });
-}
-
-renderParticipantList();
-
-
-/* ---------------------------------------------------------
-   HENT VALGTE SPILLERE
---------------------------------------------------------- */
+/* =========================
+   HJELPEFUNKSJONER
+========================= */
 
 function getSelectedPlayers() {
-    const selected = [];
+  const checkboxes = document.querySelectorAll(
+    "#playerList input[type='checkbox']"
+  );
 
-    players.forEach(p => {
-        const id = "check_" + p.name.replace(/\s+/g, "_");
-        const box = document.getElementById(id);
-
-        if (box && box.checked) {
-            selected.push(p);
-        }
-    });
-
-    return selected;
-}
-
-
-/* ---------------------------------------------------------
-   GENERER LAG
---------------------------------------------------------- */
-
-document.getElementById("generateTeamsBtn").addEventListener("click", () => {
-    const numberOfTeams = parseInt(document.getElementById("teamCount").value);
-    const selected = getSelectedPlayers();
-
-    if (selected.length < numberOfTeams) {
-        alert("Du må velge minst én spiller per lag.");
-        return;
+  const selected = [];
+  checkboxes.forEach(cb => {
+    if (cb.checked) {
+      const index = Number(cb.dataset.index);
+      selected.push(players[index]);
     }
+  });
 
-    state.selectedPlayers = selected;
+  return selected;
+}
 
-    const result = generateTeams(
-        selected,
-        numberOfTeams,
-        state.settings
+function updatePlayerToggleText() {
+  const btn = document.getElementById("playerToggle");
+  if (!btn) return;
+
+  const total = players.length;
+  const selected = getSelectedPlayers().length;
+
+  btn.childNodes[0].nodeValue =
+    `Velg spillere (${selected}/${total}) `;
+}
+
+function updateTeamCountOptions() {
+  const select = document.getElementById("teamCount");
+  const selectedPlayers = getSelectedPlayers();
+
+  select.innerHTML = "";
+
+  const maxTeams = Math.floor(selectedPlayers.length / 3);
+
+  if (maxTeams < 2) {
+    const option = document.createElement("option");
+    option.value = 2;
+    option.textContent = "2 lag (velg flere spillere)";
+    select.appendChild(option);
+    return;
+  }
+
+  for (let i = 2; i <= maxTeams; i++) {
+    const option = document.createElement("option");
+    option.value = i;
+    option.textContent = `${i} lag`;
+    select.appendChild(option);
+  }
+}
+
+/* =========================
+   HANDLERS
+========================= */
+
+function handleReset() {
+  document
+    .querySelectorAll("#playerList input[type='checkbox']")
+    .forEach(cb => (cb.checked = true));
+
+  const out = document.getElementById("generatedTeams");
+  if (out) out.innerHTML = "";
+
+  updateTeamCountOptions();
+  updatePlayerToggleText();
+
+  const slider = document.getElementById("levelDiffSlider");
+  const value = document.getElementById("levelDiffValue");
+  if (slider && value) {
+    slider.value = "4";
+    value.textContent = "4";
+  }
+}
+
+function handleGenerateTeams() {
+  const selectedPlayers = getSelectedPlayers();
+
+  if (selectedPlayers.length < 2) {
+    alert("Velg minst 2 spillere");
+    return;
+  }
+
+  const teamCount = Number(
+    document.getElementById("teamCount").value
+  );
+
+  const maxDiff = Number(
+    document.getElementById("levelDiffSlider").value
+  );
+
+  const teams = generateTeams(
+    selectedPlayers,
+    teamCount,
+    maxDiff
+  );
+
+  renderTeams(teams);
+
+  // auto-lukk spillerliste
+  const playerList = document.getElementById("playerList");
+  const playerToggle = document.getElementById("playerToggle");
+
+  if (playerList && playerToggle) {
+    playerList.classList.remove("open");
+    playerToggle.setAttribute("aria-expanded", false);
+  }
+}
+
+/* =========================
+   RENDER LAG
+========================= */
+
+function renderTeams(teams) {
+  const container = document.getElementById("generatedTeams");
+  container.innerHTML = "";
+
+  const teamLevels = teams.map(team =>
+    team.players.reduce((sum, p) => sum + p.level, 0)
+  );
+
+  let infoText = "";
+
+  if (teams.length === 2) {
+    const diff = Math.abs(teamLevels[0] - teamLevels[1]);
+    infoText = `Total nivåforskjell: ${diff}`;
+  } else {
+    const avg =
+      teamLevels.reduce((a, b) => a + b, 0) / teamLevels.length;
+    const maxDev = Math.max(
+      ...teamLevels.map(lvl => Math.abs(lvl - avg))
     );
+    infoText = `Største avvik fra snitt: ${Math.round(maxDev)}`;
+  }
 
-    renderGeneratedTeams(result);
-    addHistoryEntry(result);
-    saveLocalData();
-});
+  const info = document.createElement("div");
+  info.className = "teams-info";
+  info.textContent = infoText;
+  container.appendChild(info);
 
+  teams.forEach((team, i) => {
+    const div = document.createElement("div");
+    div.className = "team";
 
-/* ---------------------------------------------------------
-   VIS GENERATED LAG
---------------------------------------------------------- */
-
-function renderGeneratedTeams(teams) {
-    const container = document.getElementById("generatedTeams");
-    container.innerHTML = "";
-
-    teams.forEach((team, index) => {
-        const div = document.createElement("div");
-        div.className = `team-block team-${index + 1}`;
-
-        div.innerHTML = `
-            <div class="team-title">${team.teamName}</div>
-            <div class="stat">Score: ${team.score}</div>
-            <div class="team-players">
-                ${team.players
-                    .map(p => `<div class="team-player">${p.name} (${p.positions.join("/")})</div>`)
-                    .join("")}
-            </div>
+    const playersHtml = [...team.players]
+      .sort((a, b) => {
+        const posA = a.positions?.[0] || "";
+        const posB = b.positions?.[0] || "";
+        return (
+          (POSITION_ORDER[posA] || 99) -
+          (POSITION_ORDER[posB] || 99)
+        );
+      })
+      .map(p => {
+        const primaryPos = p.positions?.[0] || "";
+        return `
+          <li>
+            <span class="player-name pos-${primaryPos}">
+              ${p.name}
+            </span>
+            <small>(${p.positions?.join("/") || ""})</small>
+          </li>
         `;
+      })
+      .join("");
 
-        container.appendChild(div);
+    div.innerHTML = `
+      <h2>Lag ${i + 1}</h2>
+      <p class="level"><strong>Total nivå:</strong> ${teamLevels[i]}</p>
+      <ul>${playersHtml}</ul>
+    `;
+
+    container.appendChild(div);
+  });
+}
+
+/* =========================
+   RENDER SPILLERLISTE
+========================= */
+
+function renderPlayerList() {
+  const container = document.getElementById("playerList");
+  container.innerHTML = "";
+
+  const sortedPlayers = [...players].sort((a, b) => {
+    const posA = a.positions?.[0] || "";
+    const posB = b.positions?.[0] || "";
+    return (
+      (POSITION_ORDER[posA] || 99) -
+      (POSITION_ORDER[posB] || 99)
+    );
+  });
+
+  sortedPlayers.forEach(player => {
+    const index = players.indexOf(player);
+    const primaryPos = player.positions?.[0] || "";
+
+    const div = document.createElement("div");
+    div.innerHTML = `
+      <label class="player">
+        <input
+          type="checkbox"
+          data-index="${index}"
+          checked
+          onchange="updateTeamCountOptions(); updatePlayerToggleText();"
+        />
+        <span class="player-name pos-${primaryPos}">
+          ${player.name}
+        </span>
+        <small>(${player.positions?.join("/") || ""})</small>
+      </label>
+    `;
+    container.appendChild(div);
+  });
+}
+
+/* =========================
+   INIT
+========================= */
+
+document.addEventListener("DOMContentLoaded", () => {
+  renderPlayerList();
+  updateTeamCountOptions();
+  updatePlayerToggleText();
+
+  document
+    .getElementById("generateBtn")
+    .addEventListener("click", handleGenerateTeams);
+
+  document
+    .getElementById("resetBtn")
+    .addEventListener("click", handleReset);
+
+  const slider = document.getElementById("levelDiffSlider");
+  const value = document.getElementById("levelDiffValue");
+
+  if (slider && value) {
+    slider.addEventListener("input", () => {
+      value.textContent = slider.value;
     });
-}
+  }
 
+  // dropdown
+  const playerToggle = document.getElementById("playerToggle");
+  const playerList = document.getElementById("playerList");
 
-
-/* ---------------------------------------------------------
-   INNSTILLINGER
---------------------------------------------------------- */
-
-// Keepere-regel
-document.getElementById("allowSameTeamKeepers").addEventListener("change", (e) => {
-    state.settings.allowSameTeamKeepers = e.target.checked;
-    saveLocalData();
-});
-
-// Vekt fotpreferanse
-document.getElementById("weightFoot").addEventListener("input", (e) => {
-    state.settings.weightFoot = parseFloat(e.target.value);
-    saveLocalData();
-});
-
-// Vekt kullbalanse
-document.getElementById("weightCohort").addEventListener("input", (e) => {
-    state.settings.weightCohort = parseFloat(e.target.value);
-    saveLocalData();
-});
-
-
-/* ---------------------------------------------------------
-   HISTORIKK
---------------------------------------------------------- */
-
-function addHistoryEntry(result) {
-    const entry = {
-        timestamp: new Date().toLocaleString(),
-        teams: result
-    };
-
-    state.history.push(entry);
-    renderHistory();
-}
-
-function renderHistory() {
-    const container = document.getElementById("historyList");
-    container.innerHTML = "";
-
-    state.history.forEach(h => {
-        const div = document.createElement("div");
-        div.className = "card";
-
-        div.innerHTML = `
-            <strong>${h.timestamp}</strong>
-            ${h.teams
-                .map(t => `
-                    <div class="stat">
-                        ${t.teamName} – ${t.players.length} spillere – score ${t.score}
-                    </div>
-                `).join("")}
-        `;
-
-        container.appendChild(div);
+  if (playerToggle && playerList) {
+    playerToggle.addEventListener("click", () => {
+      const isOpen = playerList.classList.toggle("open");
+      playerToggle.setAttribute("aria-expanded", isOpen);
     });
-}
-
-
-
-/* ---------------------------------------------------------
-   LOCAL STORAGE (lagring av innstillinger + historikk)
---------------------------------------------------------- */
-
-function saveLocalData() {
-    localStorage.setItem("lagshuffler_state", JSON.stringify(state));
-}
-
-function loadLocalData() {
-    const saved = localStorage.getItem("lagshuffler_state");
-    if (!saved) return;
-
-    state = JSON.parse(saved);
-}
-
-renderHistory();
-
-
-/* ---------------------------------------------------------
-   NULLSTILL DATA
---------------------------------------------------------- */
-
-document.getElementById("resetDataBtn").addEventListener("click", () => {
-    if (!confirm("Er du sikker på at du vil nullstille alle appdata?")) return;
-
-    localStorage.removeItem("lagshuffler_state");
-    location.reload();
+  }
 });

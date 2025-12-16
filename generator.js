@@ -1,160 +1,163 @@
-// -----------------------------
-// KONFIGURASJON
-// -----------------------------
+const MAX_TRIES = 3000;
 
-const POSITION_WEIGHT = 25;   // Posisjon viktigst
-const SKILL_WEIGHT = 5;       // Nivå nesten like viktig
-const BALANCE_WEIGHT = 4;     // Lik lagstørrelse viktig
+/* =========================
+   Hjelpefunksjoner
+========================= */
 
-// -----------------------------
-// FAILSAFE PLAYER VALIDATION
-// -----------------------------
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
-function sanitizePlayers(players) {
-    return players.map(p => {
-        // navn fallback
-        if (!p.name) {
-            console.warn("Spiller mangler navn. Setter 'Ukjent'.", p);
-            p.name = "Ukjent spiller";
-        }
+function teamLevel(team) {
+  return team.players.reduce(
+    (sum, p) => sum + (p.level || 0),
+    0
+  );
+}
 
-        // nivaa fallback
-        if (typeof p.nivaa !== "number") {
-            console.warn("Spiller mangler nivaa. Setter 1.", p);
-            p.nivaa = 1;
-        }
+function teamLevels(teams) {
+  return teams.map(teamLevel);
+}
 
-        // positions fallback
-        if (!Array.isArray(p.positions)) {
-            console.warn("Spiller mangler positions-array. Setter tom.", p);
-            p.positions = [];
-        }
+function maxDeviationFromAverage(levels) {
+  const avg =
+    levels.reduce((a, b) => a + b, 0) / levels.length;
 
-        return p;
+  return Math.max(
+    ...levels.map(lvl => Math.abs(lvl - avg))
+  );
+}
+
+function countPositions(team) {
+  const counts = {};
+  team.players.forEach(p => {
+    if (!Array.isArray(p.positions)) return;
+    p.positions.forEach(pos => {
+      counts[pos] = (counts[pos] || 0) + 1;
     });
+  });
+  return counts;
 }
 
-// -----------------------------
-// HJELPEFUNKSJONER
-// -----------------------------
+function positionsBalanced(teams) {
+  const allPositions = new Set();
 
-function calculateTeamScore(team) {
-    return team.reduce((sum, p) => sum + (p.nivaa || 0), 0);
-}
+  teams.forEach(team => {
+    Object.keys(countPositions(team)).forEach(pos =>
+      allPositions.add(pos)
+    );
+  });
 
-function countPosition(team, pos) {
-    return team.filter(p => Array.isArray(p.positions) && p.positions.includes(pos)).length;
-}
+  for (const pos of allPositions) {
+    const counts = teams.map(
+      t => countPositions(t)[pos] || 0
+    );
 
-function positionScore(teamA, teamB) {
-    const posTypes = ["Keeper", "Forsvar", "Midtbane", "Spiss"];
-    let total = 0;
-
-    for (const pos of posTypes) {
-        const diff = Math.abs(countPosition(teamA, pos) - countPosition(teamB, pos));
-        total += diff * POSITION_WEIGHT;
+    if (Math.max(...counts) - Math.min(...counts) > 1) {
+      return false;
     }
+  }
 
-    return total;
+  return true;
 }
 
-function skillScore(teamA, teamB) {
-    const scoreA = calculateTeamScore(teamA);
-    const scoreB = calculateTeamScore(teamB);
-    return Math.abs(scoreA - scoreB) * SKILL_WEIGHT;
-}
+/* =========================
+   HOVEDFUNKSJON
+========================= */
 
-function sizeScore(teamA, teamB) {
-    return Math.abs(teamA.length - teamB.length) * BALANCE_WEIGHT;
-}
+function generateTeams(
+  selectedPlayers,
+  numberOfTeams = 2,
+  maxDiff = 0
+) {
+  let best = null;
+  let bestScore = Infinity;
 
-function totalScore(teamA, teamB) {
-    return positionScore(teamA, teamB) + skillScore(teamA, teamB) + sizeScore(teamA, teamB);
-}
+  for (let i = 0; i < MAX_TRIES; i++) {
+    const teams = generateTeamsOnce(
+      selectedPlayers,
+      numberOfTeams
+    );
 
-// -----------------------------
-// INITIAL TEAM GENERATION
-// -----------------------------
+    const levels = teamLevels(teams);
+    const score =
+      numberOfTeams === 2
+        ? Math.abs(levels[0] - levels[1])
+        : maxDeviationFromAverage(levels);
 
-function generateInitialTeams(players) {
-    const sanitized = sanitizePlayers(players);
+    // ❌ nivåregel
+    if (score > maxDiff) continue;
 
-    const keepers = sanitized.filter(p => p.positions.includes("Keeper"));
-    const others  = sanitized.filter(p => !p.positions.includes("Keeper"))
-                            .sort(() => Math.random() - 0.5);
+    // ❌ posisjonsregel
+    if (!positionsBalanced(teams)) continue;
 
-    const mid = Math.ceil(players.length / 2);
-    let teamA = [];
-    let teamB = [];
+    // ✔ gyldig løsning
+    return teams;
+  }
 
-    // Keeperfordeling
-    if (keepers.length === 1) {
-        keepers[0].assignedKeeper = true;
-        teamA.push(keepers[0]);
-    } else if (keepers.length >= 2) {
-        keepers[0].assignedKeeper = true;
-        keepers[1].assignedKeeper = true;
-        teamA.push(keepers[0]);
-        teamB.push(keepers[1]);
+  // fallback: beste vi fant
+  for (let i = 0; i < MAX_TRIES; i++) {
+    const teams = generateTeamsOnce(
+      selectedPlayers,
+      numberOfTeams
+    );
+
+    const levels = teamLevels(teams);
+    const score =
+      numberOfTeams === 2
+        ? Math.abs(levels[0] - levels[1])
+        : maxDeviationFromAverage(levels);
+
+    if (score < bestScore) {
+      bestScore = score;
+      best = teams;
     }
+  }
 
-    // Fyller på
-    for (const p of others) {
-        if (teamA.length < mid) teamA.push(p);
-        else teamB.push(p);
+  return best;
+}
+
+/* =========================
+   ÉN GENERERING
+========================= */
+
+function generateTeamsOnce(playersInput, numberOfTeams) {
+  let players = [...playersInput];
+
+  const teams = Array.from(
+    { length: numberOfTeams },
+    () => ({ players: [] })
+  );
+
+  // Keeper-lås (kun 2 lag)
+  if (numberOfTeams === 2) {
+    const keepers = players.filter(
+      p =>
+        Array.isArray(p.positions) &&
+        p.positions.includes("Keeper")
+    );
+
+    if (keepers.length >= 2) {
+      teams[0].players.push(keepers[0]);
+      teams[1].players.push(keepers[1]);
+      players = players.filter(p => !keepers.includes(p));
     }
+  }
 
-    return { teamA, teamB };
+  shuffle(players).forEach((p, idx) => {
+    teams[idx % numberOfTeams].players.push(p);
+  });
+
+  return teams;
 }
 
-// -----------------------------
-// OPTIMIZATION ENGINE
-// -----------------------------
-
-function optimizeTeams(teamA, teamB) {
-    let improved = true;
-    let safety = 0;
-
-    while (improved && safety < 200) {
-        improved = false;
-        safety++;
-
-        for (let i = 0; i < teamA.length; i++) {
-            for (let j = 0; j < teamB.length; j++) {
-                if (teamA[i].assignedKeeper || teamB[j].assignedKeeper)
-                    continue;
-
-                const newA = [...teamA];
-                const newB = [...teamB];
-
-                [newA[i], newB[j]] = [newB[j], newA[i]];
-
-                if (totalScore(newA, newB) < totalScore(teamA, teamB)) {
-                    teamA = newA;
-                    teamB = newB;
-                    improved = true;
-                }
-            }
-        }
-    }
-
-    return { teamA, teamB };
-}
-
-// -----------------------------
-// HOVEDFUNKSJON
-// -----------------------------
-
-function generateTeams(players) {
-    let { teamA, teamB } = generateInitialTeams(players);
-    let optimized = optimizeTeams(teamA, teamB);
-
-    return {
-        teamA: optimized.teamA,
-        teamB: optimized.teamB,
-        scoreA: calculateTeamScore(optimized.teamA),
-        scoreB: calculateTeamScore(optimized.teamB)
-    };
-}
+/* =========================
+   Global eksport
+========================= */
 
 window.generateTeams = generateTeams;
