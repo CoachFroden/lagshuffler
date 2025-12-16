@@ -1,7 +1,7 @@
-const MAX_TRIES = 3000;
+const MAX_TRIES = 2000;
 
 /* =========================
-   Hjelpefunksjoner
+   GENERELLE HJELPERE
 ========================= */
 
 function shuffle(arr) {
@@ -14,10 +14,7 @@ function shuffle(arr) {
 }
 
 function teamLevel(team) {
-  return team.players.reduce(
-    (sum, p) => sum + (p.level || 0),
-    0
-  );
+  return team.players.reduce((sum, p) => sum + (p.level || 0), 0);
 }
 
 function teamLevels(teams) {
@@ -25,13 +22,13 @@ function teamLevels(teams) {
 }
 
 function maxDeviationFromAverage(levels) {
-  const avg =
-    levels.reduce((a, b) => a + b, 0) / levels.length;
-
-  return Math.max(
-    ...levels.map(lvl => Math.abs(lvl - avg))
-  );
+  const avg = levels.reduce((a, b) => a + b, 0) / levels.length;
+  return Math.max(...levels.map(lvl => Math.abs(lvl - avg)));
 }
+
+/* =========================
+   POSISJONER (KUN 2 LAG)
+========================= */
 
 function countPositions(team) {
   const counts = {};
@@ -57,7 +54,6 @@ function positionsBalanced(teams) {
     const counts = teams.map(
       t => countPositions(t)[pos] || 0
     );
-
     if (Math.max(...counts) - Math.min(...counts) > 1) {
       return false;
     }
@@ -67,63 +63,85 @@ function positionsBalanced(teams) {
 }
 
 /* =========================
-   HOVEDFUNKSJON
+   3+ LAG: NIVÅ + LIK STØRRELSE
 ========================= */
 
-function generateTeams(
+function distributeByLevel(players, numberOfTeams) {
+  const n = players.length;
+  const baseSize = Math.floor(n / numberOfTeams);
+  const extra = n % numberOfTeams;
+
+  // Kapasitet per lag (maks 1 forskjell)
+  const capacities = Array.from({ length: numberOfTeams }, (_, i) =>
+    baseSize + (i < extra ? 1 : 0)
+  );
+
+  const teams = Array.from(
+    { length: numberOfTeams },
+    () => ({ players: [], levelSum: 0 })
+  );
+
+  players.forEach(p => {
+    let bestIdx = -1;
+    let bestSum = Infinity;
+
+    for (let i = 0; i < numberOfTeams; i++) {
+      if (teams[i].players.length >= capacities[i]) continue;
+
+      const sum = teams[i].levelSum;
+
+      if (sum < bestSum) {
+        bestSum = sum;
+        bestIdx = i;
+      } else if (sum === bestSum && Math.random() < 0.5) {
+        bestIdx = i;
+      }
+    }
+
+    if (bestIdx === -1) bestIdx = 0;
+
+    teams[bestIdx].players.push(p);
+    teams[bestIdx].levelSum += p.level || 0;
+  });
+
+  return teams;
+}
+
+function generateTeamsMultiLevel(
   selectedPlayers,
-  numberOfTeams = 2,
-  maxDiff = 0
+  numberOfTeams,
+  maxDiff
 ) {
   let best = null;
   let bestScore = Infinity;
 
+  const base = [...selectedPlayers].sort(
+    (a, b) => (b.level || 0) - (a.level || 0)
+  );
+
   for (let i = 0; i < MAX_TRIES; i++) {
-    const teams = generateTeamsOnce(
-      selectedPlayers,
+    const shuffled = shuffle(base);
+    const teams = distributeByLevel(
+      shuffled,
       numberOfTeams
     );
 
-    const levels = teamLevels(teams);
-    const score =
-      numberOfTeams === 2
-        ? Math.abs(levels[0] - levels[1])
-        : maxDeviationFromAverage(levels);
-
-    // ❌ nivåregel
-    if (score > maxDiff) continue;
-
-    // ❌ posisjonsregel
-    if (!positionsBalanced(teams)) continue;
-
-    // ✔ gyldig løsning
-    return teams;
-  }
-
-  // fallback: beste vi fant
-  for (let i = 0; i < MAX_TRIES; i++) {
-    const teams = generateTeamsOnce(
-      selectedPlayers,
-      numberOfTeams
-    );
-
-    const levels = teamLevels(teams);
-    const score =
-      numberOfTeams === 2
-        ? Math.abs(levels[0] - levels[1])
-        : maxDeviationFromAverage(levels);
+    const levels = teams.map(t => t.levelSum);
+    const score = maxDeviationFromAverage(levels);
 
     if (score < bestScore) {
       bestScore = score;
       best = teams;
     }
+
+    if (bestScore <= maxDiff) break;
   }
 
   return best;
 }
 
 /* =========================
-   ÉN GENERERING
+   2 LAG: EKSISTERENDE LOGIKK
 ========================= */
 
 function generateTeamsOnce(playersInput, numberOfTeams) {
@@ -134,7 +152,7 @@ function generateTeamsOnce(playersInput, numberOfTeams) {
     () => ({ players: [] })
   );
 
-  // Keeper-lås (kun 2 lag)
+  // Tving keeper på hvert sitt lag (kun 2 lag)
   if (numberOfTeams === 2) {
     const keepers = players.filter(
       p =>
@@ -145,7 +163,9 @@ function generateTeamsOnce(playersInput, numberOfTeams) {
     if (keepers.length >= 2) {
       teams[0].players.push(keepers[0]);
       teams[1].players.push(keepers[1]);
-      players = players.filter(p => !keepers.includes(p));
+      players = players.filter(
+        p => p !== keepers[0] && p !== keepers[1]
+      );
     }
   }
 
@@ -157,7 +177,63 @@ function generateTeamsOnce(playersInput, numberOfTeams) {
 }
 
 /* =========================
-   Global eksport
+   HOVEDFUNKSJON
+========================= */
+
+function generateTeams(
+  selectedPlayers,
+  numberOfTeams = 2,
+  maxDiff = 0
+) {
+  // 🔹 3+ lag: nivå + lik størrelse
+  if (numberOfTeams > 2) {
+    return generateTeamsMultiLevel(
+      selectedPlayers,
+      numberOfTeams,
+      maxDiff
+    );
+  }
+
+  // 🔹 2 lag: eksisterende streng logikk
+  let best = null;
+  let bestScore = Infinity;
+
+  for (let i = 0; i < MAX_TRIES; i++) {
+    const teams = generateTeamsOnce(
+      selectedPlayers,
+      numberOfTeams
+    );
+
+    const levels = teamLevels(teams);
+    const score = Math.abs(levels[0] - levels[1]);
+
+    if (score > maxDiff) continue;
+    if (!positionsBalanced(teams)) continue;
+
+    return teams;
+  }
+
+  // fallback: best mulig
+  for (let i = 0; i < MAX_TRIES; i++) {
+    const teams = generateTeamsOnce(
+      selectedPlayers,
+      numberOfTeams
+    );
+
+    const levels = teamLevels(teams);
+    const score = Math.abs(levels[0] - levels[1]);
+
+    if (score < bestScore) {
+      bestScore = score;
+      best = teams;
+    }
+  }
+
+  return best;
+}
+
+/* =========================
+   GLOBAL EKSPORT
 ========================= */
 
 window.generateTeams = generateTeams;

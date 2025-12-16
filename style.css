@@ -26,23 +26,38 @@
   box-sizing: border-box;
 }
 
+html, body {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
-  padding: 16px;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  background: linear-gradient(180deg, var(--bg-main), var(--bg-soft));
-  color: var(--text-main);
+
+  background: radial-gradient(
+    ellipse at top,
+    #0f172a 0%,
+    #020617 60%
+  );
+
+  color: #e5e7eb;
 }
+
 
 /* =========================
    TYPOGRAFI
 ========================= */
 
 h1 {
-  text-align: center;
-  font-size: 1.9rem;
-  margin-bottom: 4px;
+  margin-top: 40px;
+  margin-bottom: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
 }
+
 
 .subtitle {
   text-align: center;
@@ -393,3 +408,20 @@ button.secondary {
   margin: 0 auto;      /* midtstill hvert kort */
 }
 
+/* Skjul scrollbar – behold scrolling */
+
+/* Chrome, Edge, Safari */
+::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+}
+
+/* Firefox */
+html {
+  scrollbar-width: none;
+}
+
+/* IE / eldre Edge */
+body {
+  -ms-overflow-style: none;
+}
