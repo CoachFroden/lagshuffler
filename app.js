@@ -52,7 +52,7 @@ function updateTeamCountOptions() {
 
   select.innerHTML = "";
 
-  const maxTeams = Math.floor(selectedPlayers.length / 3);
+  const maxTeams = Math.floor(selectedPlayers.length / 2);
 
   if (maxTeams < 2) {
     const option = document.createElement("option");
