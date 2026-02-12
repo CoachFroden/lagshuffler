@@ -116,6 +116,9 @@ function handleGenerateTeams() {
   );
 
   renderTeams(teams);
+  
+  const btn = document.getElementById("startTournamentBtn");
+if (btn) btn.style.display = "inline-block";
 
   // auto-lukk spillerliste
   const playerList = document.getElementById("playerList");
@@ -270,4 +273,21 @@ document.addEventListener("DOMContentLoaded", () => {
       playerToggle.setAttribute("aria-expanded", isOpen);
     });
   }
+  
+  const startBtn = document.getElementById("startTournamentBtn");
+
+if (startBtn) {
+  startBtn.addEventListener("click", () => {
+    const selectedPlayers = getSelectedPlayers();
+    const teamCount = Number(document.getElementById("teamCount").value);
+    const maxDiff = Number(document.getElementById("levelDiffSlider").value);
+
+    const teams = generateTeams(selectedPlayers, teamCount, maxDiff);
+
+    localStorage.setItem("lagshuffler_teams", JSON.stringify(teams));
+
+    window.location.href = "turnering.html";
+  });
+}
+
 });
