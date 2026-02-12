@@ -126,7 +126,23 @@ function generateTeamsMultiLevel(
       numberOfTeams
     );
 
-    const levels = teams.map(t => t.levelSum);
+const maxSize = Math.max(...teams.map(t => t.players.length));
+
+// Nivåer for lag som har full størrelse
+const fullTeams = teams.filter(t => t.players.length === maxSize);
+const fullTeamLevels = fullTeams.map(t => t.levelSum);
+
+const avgFullTeamLevel =
+  fullTeamLevels.reduce((a, b) => a + b, 0) / fullTeamLevels.length;
+
+// Justert nivå
+const levels = teams.map(t => {
+  if (t.players.length === maxSize) {
+    return t.levelSum;
+  } else {
+    return avgFullTeamLevel;
+  }
+});
     const score = maxDeviationFromAverage(levels);
 
     if (score < bestScore) {
