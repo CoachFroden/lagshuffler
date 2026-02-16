@@ -420,16 +420,23 @@ function renderTable() {
         </tr>
   `;
 
-  sorted.forEach(row => {
-    html += `
-      <tr>
-        <td>${row.name}</td>
-        <td>${row.played}</td>
-        <td>${row.goalDiff}</td>
-        <td><strong>${row.points}</strong></td>
-      </tr>
-    `;
-  });
+sorted.forEach(row => {
+  html += `
+    <tr data-team-name="${row.name}">
+      <td>
+        <span 
+          style="cursor:pointer; font-weight:600;"
+          onclick="toggleTeamDetails('${row.name}')"
+        >
+          ${row.name}
+        </span>
+      </td>
+      <td>${row.played}</td>
+      <td>${row.goalDiff}</td>
+      <td><strong>${row.points}</strong></td>
+    </tr>
+  `;
+});
 
   html += "</table></div>";
 
@@ -784,3 +791,38 @@ function assignLoanPlayer(match) {
   return loans;
 }
 
+function toggleTeamDetails(teamName) {
+
+  const existing = document.getElementById("team-details-" + teamName);
+
+  if (existing) {
+    existing.remove();
+    return;
+  }
+
+  const team = tournament.teams.find(t => t.name === teamName);
+
+  if (!team) return;
+
+  const row = document.querySelector(
+    `[data-team-name="${teamName}"]`
+  );
+
+  if (!row) return;
+
+  const detailsRow = document.createElement("tr");
+  detailsRow.id = "team-details-" + teamName;
+
+  const td = document.createElement("td");
+  td.colSpan = 4;
+
+  td.style.padding = "8px";
+  td.style.fontSize = "13px";
+  td.style.opacity = "0.8";
+
+  td.innerHTML = team.players.map(p => p.name).join(", ");
+
+  detailsRow.appendChild(td);
+
+  row.after(detailsRow);
+}
