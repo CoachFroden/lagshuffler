@@ -12,6 +12,8 @@ let tournament = {
   table: {}
 };
 
+let loanRotation = [];
+
 let timer = {
   duration: 180,      // default 3 minutter
   remaining: 180,
@@ -84,7 +86,9 @@ function startSeries() {
   tournament.totalSeriesMatches = tournament.fixtures.length;
   tournament.seriesMatchIndex = 0;
 
+  initializeLoanRotation();   // <-- legg til denne
   loadNextMatch();
+
 }
 
 /* =========================
@@ -177,6 +181,8 @@ if (tournament.phase === "series") {
 	finished: true
   };
   
+  tournament.currentMatch.loan = assignLoanPlayer(tournament.currentMatch);
+  
   timer.remaining = timer.duration;
 timer.running = false;
 clearInterval(timer.interval);
@@ -195,8 +201,20 @@ function renderCurrentMatch() {
   const home = tournament.teams.find(t => t.id === m.home);
   const away = tournament.teams.find(t => t.id === m.away);
   
-  const homePlayers = home.players.map(p => p.name).join(", ");
-  const awayPlayers = away.players.map(p => p.name).join(", ");
+  let homePlayersHtml = home.players.map(p => p.name).join(", ");
+  let awayPlayersHtml = away.players.map(p => p.name).join(", ");
+
+  
+if (m.loan) {
+
+  m.loan.home.forEach(player => {
+    homePlayersHtml += `, <span style="color:#ef4444;">${player.name}</span>`;
+  });
+
+  m.loan.away.forEach(player => {
+    awayPlayersHtml += `, <span style="color:#ef4444;">${player.name}</span>`;
+  });
+}
   
 let matchInfo = "";
 
@@ -247,7 +265,7 @@ if (tournament.phase === "series") {
         <div style="text-align:center;">
   <h3>${home.name}</h3>
   <div style="font-size:12px; opacity:0.7; margin-bottom:6px;">
-    ${homePlayers}
+    ${homePlayersHtml}
   </div>
   <button class="goal-btn plus" onclick="addGoal('home')">+</button>
   <div class="score">${m.homeGoals}</div>
@@ -267,7 +285,7 @@ if (tournament.phase === "series") {
      <div style="text-align:center;">
   <h3>${away.name}</h3>
   <div style="font-size:12px; opacity:0.7; margin-bottom:6px;">
-    ${awayPlayers}
+    ${awayPlayersHtml}
   </div>
   <button class="goal-btn plus" onclick="addGoal('away')">+</button>
   <div class="score">${m.awayGoals}</div>
@@ -284,6 +302,7 @@ if (tournament.phase === "series") {
       </button>
 
     </div>
+	${renderUpcomingMatches()}
 
     ${renderTable()}
   `;
@@ -626,3 +645,142 @@ function startFireworks() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }, 6000);
 }
+
+function renderUpcomingMatches() {
+
+  if (tournament.phase !== "series") return "";
+
+  const next1 = tournament.fixtures[0];
+  const next2 = tournament.fixtures[1];
+
+  let html = `<div style="
+      margin-top:14px;
+      text-align:center;
+    ">`;
+
+  if (next1) {
+    const teamA = tournament.teams.find(t => t.id === next1.home);
+    const teamB = tournament.teams.find(t => t.id === next1.away);
+
+    html += `
+      <div style="
+        font-size:15px;
+        font-weight:600;
+        color:#22c55e;
+        margin-bottom:4px;
+      ">
+        Neste: ${teamA.name} vs ${teamB.name}
+      </div>
+    `;
+  }
+
+  if (next2) {
+    const teamA = tournament.teams.find(t => t.id === next2.home);
+    const teamB = tournament.teams.find(t => t.id === next2.away);
+
+    html += `
+      <div style="
+        font-size:13px;
+        opacity:0.6;
+      ">
+        Deretter: ${teamA.name} vs ${teamB.name}
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+
+  return html;
+}
+
+function initializeLoanRotation() {
+
+  const sizeCount = {};
+  tournament.teams.forEach(t => {
+    const size = t.players.length;
+    sizeCount[size] = (sizeCount[size] || 0) + 1;
+  });
+
+  let targetSize = null;
+  let maxCount = 0;
+
+  for (const size in sizeCount) {
+    if (sizeCount[size] > maxCount) {
+      maxCount = sizeCount[size];
+      targetSize = parseInt(size, 10);
+    }
+  }
+
+  loanRotation = [];
+
+  tournament.teams.forEach(team => {
+    if (team.players.length >= targetSize) {
+      team.players.forEach(player => {
+        loanRotation.push({
+          player,
+          fromTeamId: team.id
+        });
+      });
+    }
+  });
+
+  loanRotation.sort(() => Math.random() - 0.5);
+}
+
+function pickLoanPlayer(excludedTeamIds) {
+
+  for (let i = 0; i < loanRotation.length; i++) {
+    const entry = loanRotation[i];
+
+    if (!excludedTeamIds.includes(entry.fromTeamId)) {
+
+      loanRotation.push(loanRotation.splice(i, 1)[0]);
+
+      return entry.player;
+    }
+  }
+
+  return null;
+}
+
+function assignLoanPlayer(match) {
+
+  const home = tournament.teams.find(t => t.id === match.home);
+  const away = tournament.teams.find(t => t.id === match.away);
+
+  const sizeCount = {};
+  tournament.teams.forEach(t => {
+    const size = t.players.length;
+    sizeCount[size] = (sizeCount[size] || 0) + 1;
+  });
+
+  let targetSize = null;
+  let maxCount = 0;
+
+  for (const size in sizeCount) {
+    if (sizeCount[size] > maxCount) {
+      maxCount = sizeCount[size];
+      targetSize = parseInt(size, 10);
+    }
+  }
+
+  const neededHome = Math.max(0, targetSize - home.players.length);
+  const neededAway = Math.max(0, targetSize - away.players.length);
+
+  const loans = { home: [], away: [] };
+
+  const excluded = [home.id, away.id];
+
+  for (let i = 0; i < neededHome; i++) {
+    const p = pickLoanPlayer(excluded);
+    if (p) loans.home.push(p);
+  }
+
+  for (let i = 0; i < neededAway; i++) {
+    const p = pickLoanPlayer(excluded);
+    if (p) loans.away.push(p);
+  }
+
+  return loans;
+}
+
