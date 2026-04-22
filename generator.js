@@ -1,4 +1,4 @@
-const MAX_TRIES = 2000;
+const MAX_TRIES = 5000;
 
 /* =========================
    GENERELLE HJELPERE
@@ -149,7 +149,7 @@ const levels = teams.map(t => {
       best = teams;
     }
 
-    if (bestScore <= maxDiff) break;
+   
   }
 
   return best;
@@ -210,43 +210,33 @@ function generateTeams(
   }
 
   // 🔹 2 lag: eksisterende streng logikk
-  let best = null;
-  let bestScore = Infinity;
+let best = null;
+let bestScore = Infinity;
 
-  for (let i = 0; i < MAX_TRIES; i++) {
-    const teams = generateTeamsOnce(
-      selectedPlayers,
-      numberOfTeams
-    );
+for (let i = 0; i < MAX_TRIES; i++) {
+  const teams = generateTeamsOnce(
+    selectedPlayers,
+    numberOfTeams
+  );
 
-    const levels = teamLevels(teams);
-    const score = Math.abs(levels[0] - levels[1]);
+  if (!positionsBalanced(teams)) continue;
 
-    if (score > maxDiff) continue;
-    if (!positionsBalanced(teams)) continue;
+  const levels = teamLevels(teams);
+  const score = Math.abs(levels[0] - levels[1]);
 
-    return teams;
+  if (score < bestScore) {
+    bestScore = score;
+    best = teams;
   }
-
-  // fallback: best mulig
-  for (let i = 0; i < MAX_TRIES; i++) {
-    const teams = generateTeamsOnce(
-      selectedPlayers,
-      numberOfTeams
-    );
-
-    const levels = teamLevels(teams);
-    const score = Math.abs(levels[0] - levels[1]);
-
-    if (score < bestScore) {
-      bestScore = score;
-      best = teams;
-    }
-  }
-
-  return best;
 }
 
+// fallback hvis ingen klarer posisjonskrav
+if (!best) {
+  return generateTeamsOnce(selectedPlayers, numberOfTeams);
+}
+
+return best;
+}
 /* =========================
    GLOBAL EKSPORT
 ========================= */
