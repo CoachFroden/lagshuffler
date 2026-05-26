@@ -105,14 +105,10 @@ function handleGenerateTeams() {
     document.getElementById("teamCount").value
   );
 
-  const maxDiff = Number(
-    document.getElementById("levelDiffSlider").value
-  );
 
   const teams = generateTeams(
     selectedPlayers,
     teamCount,
-    maxDiff
   );
 
   renderTeams(teams);
