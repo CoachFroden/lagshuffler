@@ -1,5 +1,5 @@
 // Enkel cache-basert PWA-støtte for LagShuffler.
-const CACHE_NAME = "lagshuffler-cache-v3";
+const CACHE_NAME = "lagshuffler-cache-v4";
 const FILES_TO_CACHE = [
   "./",
   "index.html",
