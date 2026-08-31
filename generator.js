@@ -7,6 +7,13 @@ const POSITION_WEIGHTS = {
   Spiss: 4
 };
 
+const POSITION_STRENGTH_WEIGHTS = {
+  Keeper: 2,
+  Forsvar: 8,
+  Midtbane: 7,
+  Spiss: 8
+};
+
 /* =========================
    GENERELLE HJELPERE
 ========================= */
@@ -37,8 +44,109 @@ function hasPosition(player, position) {
   return Array.isArray(player.positions) && player.positions.includes(position);
 }
 
+function positionContribution(player, position) {
+  if (!Array.isArray(player.positions)) return 0;
+  const index = player.positions.indexOf(position);
+  if (index === 0) return 1;
+  if (index > 0) return 0.55;
+  return 0;
+}
+
+function weightedPositionCount(team, position) {
+  return team.players.reduce(
+    (sum, player) => sum + positionContribution(player, position),
+    0
+  );
+}
+
+function weightedPositionLevelTotal(team, position) {
+  return team.players.reduce((sum, player) => {
+    const contribution = positionContribution(player, position);
+    return sum + contribution * (player.level || 0);
+  }, 0);
+}
+
+function positionAverageLevel(team, position) {
+  const count = weightedPositionCount(team, position);
+  if (count <= 0) return null;
+  return weightedPositionLevelTotal(team, position) / count;
+}
+
+function positionStrengthBalanceScore(teams, stats) {
+  let score = 0;
+
+  stats.positions.forEach(position => {
+    const averages = teams
+      .map(team => positionAverageLevel(team, position))
+      .filter(value => value !== null);
+
+    if (averages.length < 2) return;
+
+    const avg = averages.reduce((sum, value) => sum + value, 0) / averages.length;
+    const variance = averages.reduce(
+      (sum, value) => sum + Math.pow(value - avg, 2),
+      0
+    );
+    const range = Math.max(...averages) - Math.min(...averages);
+    const weight = POSITION_STRENGTH_WEIGHTS[position] || 5;
+
+    score += variance * weight * 6 + range * weight * 4;
+  });
+
+  return score;
+}
+
 /* =========================
-   POSISJONER (2 LAG)
+   FELLES POSISJONSSTATISTIKK
+========================= */
+
+function createMultiTeamStats(players, numberOfTeams) {
+  const positions = [...new Set(
+    players.flatMap(player => Array.isArray(player.positions) ? player.positions : [])
+  )];
+
+  const totalLevel = players.reduce((sum, player) => sum + (player.level || 0), 0);
+  const avgLevel = players.length ? totalLevel / players.length : 0;
+
+  const positionTotals = {};
+  const positionPlayerCounts = {};
+  const positionLevelTotals = {};
+  const positionAverageLevels = {};
+
+  positions.forEach(position => {
+    positionPlayerCounts[position] = players.filter(player => hasPosition(player, position)).length;
+
+    positionTotals[position] = players.reduce(
+      (sum, player) => sum + positionContribution(player, position),
+      0
+    );
+
+    positionLevelTotals[position] = players.reduce((sum, player) => {
+      const contribution = positionContribution(player, position);
+      return sum + contribution * (player.level || 0);
+    }, 0);
+
+    positionAverageLevels[position] = positionTotals[position] > 0
+      ? positionLevelTotals[position] / positionTotals[position]
+      : avgLevel;
+  });
+
+  return {
+    positions,
+    positionTotals,
+    positionPlayerCounts,
+    positionLevelTotals,
+    positionAverageLevels,
+    totalLevel,
+    avgLevel,
+    totalPlayers: players.length,
+    numberOfTeams,
+    keeperCount: players.filter(player => hasPosition(player, "Keeper")).length
+  };
+}
+
+/* =========================
+   2 LAG: ANTALL + NIVÅ PER POSISJON
 ========================= */
 
 function countPositions(team) {
@@ -69,51 +177,76 @@ function positionsBalanced(teams) {
   return true;
 }
 
+function twoTeamScore(teams, stats) {
+  const levels = teamLevels(teams);
+  const totalLevelDiff = Math.abs(levels[0] - levels[1]);
+
+  // Totalnivå er viktig, men en skjev lagdel skal ikke kunne "kjøpes"
+  // ved at forsvar på ett lag og angrep på det andre jevner ut totalsummen.
+  let score = totalLevelDiff * 24;
+  score += positionStrengthBalanceScore(teams, stats);
+
+  // Litt ekstra straff for skjevhet i vektet posisjonsdekning.
+  stats.positions.forEach(position => {
+    const counts = teams.map(team => weightedPositionCount(team, position));
+    const diff = Math.abs(counts[0] - counts[1]);
+    const weight = POSITION_WEIGHTS[position] || 2.5;
+    score += diff * weight * 8;
+  });
+
+  return score;
+}
+
+function generateTeamsOnce(playersInput, numberOfTeams) {
+  let players = [...playersInput];
+
+  const teams = Array.from(
+    { length: numberOfTeams },
+    () => ({ players: [] })
+  );
+
+  // Tving keeper på hvert sitt lag når vi har minst to keepere.
+  if (numberOfTeams === 2) {
+    const keepers = players.filter(p => hasPosition(p, "Keeper"));
+
+    if (keepers.length >= 2) {
+      const keeperPair = shuffle(keepers).slice(0, 2);
+      teams[0].players.push(keeperPair[0]);
+      teams[1].players.push(keeperPair[1]);
+      players = players.filter(p => !keeperPair.includes(p));
+    }
+  }
+
+  shuffle(players).forEach((p, idx) => {
+    teams[idx % numberOfTeams].players.push(p);
+  });
+
+  return teams;
+}
+
+function generateTwoBalancedTeams(selectedPlayers) {
+  const stats = createMultiTeamStats(selectedPlayers, 2);
+  let best = null;
+  let bestScore = Infinity;
+
+  for (let i = 0; i < MAX_TRIES; i++) {
+    const teams = generateTeamsOnce(selectedPlayers, 2);
+
+    if (!positionsBalanced(teams)) continue;
+
+    const score = twoTeamScore(teams, stats);
+    if (score < bestScore) {
+      bestScore = score;
+      best = teams;
+    }
+  }
+
+  return best || generateTeamsOnce(selectedPlayers, 2);
+}
+
 /* =========================
    3+ LAG: SMART BALANSERING
 ========================= */
-
-function positionContribution(player, position) {
-  if (!Array.isArray(player.positions)) return 0;
-  const index = player.positions.indexOf(position);
-  if (index === 0) return 1;
-  if (index > 0) return 0.55;
-  return 0;
-}
-
-function weightedPositionCount(team, position) {
-  return team.players.reduce(
-    (sum, player) => sum + positionContribution(player, position),
-    0
-  );
-}
-
-function createMultiTeamStats(players, numberOfTeams) {
-  const positions = [...new Set(
-    players.flatMap(player => Array.isArray(player.positions) ? player.positions : [])
-  )];
-
-  const totalLevel = players.reduce((sum, player) => sum + (player.level || 0), 0);
-  const avgLevel = players.length ? totalLevel / players.length : 0;
-
-  const positionTotals = {};
-  positions.forEach(position => {
-    positionTotals[position] = players.reduce(
-      (sum, player) => sum + positionContribution(player, position),
-      0
-    );
-  });
-
-  return {
-    positions,
-    positionTotals,
-    totalLevel,
-    avgLevel,
-    totalPlayers: players.length,
-    numberOfTeams,
-    keeperCount: players.filter(player => hasPosition(player, "Keeper")).length
-  };
-}
 
 function createCapacities(playerCount, numberOfTeams) {
   const baseSize = Math.floor(playerCount / numberOfTeams);
@@ -144,16 +277,30 @@ function placementScore(team, player, capacity, stats) {
 
   const projectedSize = team.players.length + 1;
   let positionScore = 0;
+  let positionStrengthScore = 0;
 
   stats.positions.forEach(position => {
-    const projectedCount =
-      weightedPositionCount(team, position) + positionContribution(player, position);
+    const contribution = positionContribution(player, position);
+    const projectedCount = weightedPositionCount(team, position) + contribution;
     const expectedCount =
       (stats.positionTotals[position] / stats.totalPlayers) * projectedSize;
     const diff = projectedCount - expectedCount;
-    const weight = POSITION_WEIGHTS[position] || 2.5;
+    const countWeight = POSITION_WEIGHTS[position] || 2.5;
 
-    positionScore += diff * diff * weight;
+    positionScore += diff * diff * countWeight;
+
+    if (contribution > 0) {
+      const currentCount = weightedPositionCount(team, position);
+      const currentLevelTotal = weightedPositionLevelTotal(team, position);
+      const projectedAverage =
+        (currentLevelTotal + contribution * (player.level || 0)) /
+        (currentCount + contribution);
+      const targetAverage = stats.positionAverageLevels[position] || stats.avgLevel;
+      const strengthDiff = projectedAverage - targetAverage;
+      const strengthWeight = POSITION_STRENGTH_WEIGHTS[position] || 5;
+
+      positionStrengthScore += strengthDiff * strengthDiff * strengthWeight;
+    }
   });
 
   let keeperScore = 0;
@@ -164,7 +311,13 @@ function placementScore(team, player, capacity, stats) {
     }
   }
 
-  return levelScore + positionScore * 2.2 + keeperScore + Math.random() * 0.25;
+  return (
+    levelScore +
+    positionScore * 2.2 +
+    positionStrengthScore * 1.8 +
+    keeperScore +
+    Math.random() * 0.25
+  );
 }
 
 function distributeSmart(players, numberOfTeams, stats) {
@@ -226,7 +379,21 @@ function multiTeamScore(teams, stats) {
     const weight = POSITION_WEIGHTS[position] || 2.5;
 
     score += variance * weight * 5 + range * weight * 2;
+
+    // Hvis spillergrunnlaget faktisk har nok spillere til at alle lag kan
+    // dekke en posisjon, skal generatoren prioritere det svært høyt.
+    if ((stats.positionPlayerCounts[position] || 0) >= teams.length) {
+      const missingTeams = teams.filter(
+        team => weightedPositionCount(team, position) < 0.5
+      ).length;
+      score += missingTeams * weight * 180;
+    }
   });
+
+  // Balanser også selve kvaliteten innen hver posisjon.
+  // Dermed unngår vi at ett lag får alle de beste forsvarerne mens
+  // et annet får de beste spissene, selv om totalnivået er likt.
+  score += positionStrengthBalanceScore(teams, stats);
 
   const keeperCounts = teams.map(
     team => team.players.filter(player => hasPosition(player, "Keeper")).length
@@ -276,67 +443,15 @@ function generateTeamsMultiLevel(selectedPlayers, numberOfTeams, maxDiff) {
 }
 
 /* =========================
-   2 LAG: EKSISTERENDE LOGIKK
-========================= */
-
-function generateTeamsOnce(playersInput, numberOfTeams) {
-  let players = [...playersInput];
-
-  const teams = Array.from(
-    { length: numberOfTeams },
-    () => ({ players: [] })
-  );
-
-  // Tving keeper på hvert sitt lag (kun 2 lag)
-  if (numberOfTeams === 2) {
-    const keepers = players.filter(p => hasPosition(p, "Keeper"));
-
-    if (keepers.length >= 2) {
-      teams[0].players.push(keepers[0]);
-      teams[1].players.push(keepers[1]);
-      players = players.filter(p => p !== keepers[0] && p !== keepers[1]);
-    }
-  }
-
-  shuffle(players).forEach((p, idx) => {
-    teams[idx % numberOfTeams].players.push(p);
-  });
-
-  return teams;
-}
-
-/* =========================
    HOVEDFUNKSJON
 ========================= */
 
 function generateTeams(selectedPlayers, numberOfTeams = 2, maxDiff = 0) {
-  if (numberOfTeams > 2) {
-    return generateTeamsMultiLevel(selectedPlayers, numberOfTeams, maxDiff);
+  if (numberOfTeams === 2) {
+    return generateTwoBalancedTeams(selectedPlayers);
   }
 
-  let best = null;
-  let bestScore = Infinity;
-
-  for (let i = 0; i < MAX_TRIES; i++) {
-    const teams = generateTeamsOnce(selectedPlayers, numberOfTeams);
-
-    if (!positionsBalanced(teams)) continue;
-
-    const levels = teamLevels(teams);
-    const score = Math.abs(levels[0] - levels[1]);
-
-    if (score < bestScore) {
-      bestScore = score;
-      best = teams;
-    }
-  }
-
-  // fallback hvis ingen klarer posisjonskrav
-  if (!best) {
-    return generateTeamsOnce(selectedPlayers, numberOfTeams);
-  }
-
-  return best;
+  return generateTeamsMultiLevel(selectedPlayers, numberOfTeams, maxDiff);
 }
 
 /* =========================
