@@ -1,5 +1,5 @@
 // Enkel cache-basert PWA-støtte for LagShuffler.
-const CACHE_NAME = "lagshuffler-cache-v5";
+const CACHE_NAME = "lagshuffler-cache-v6";
 const FILES_TO_CACHE = [
   "./",
   "index.html",
@@ -8,6 +8,7 @@ const FILES_TO_CACHE = [
   "players.js",
   "player-overrides.js",
   "generator.js",
+  "generator-fix.js",
   "turnering.html",
   "turnering.js",
   "manifest.json",
