@@ -2,64 +2,139 @@
 <html lang="no">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#08111f" />
   <title>LagShuffler</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="manifest" href="manifest.json">
-
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-
-<link rel="apple-touch-icon" href="icon-192.png">
-<meta name="theme-color" content="#3a7afe">
-
+  <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
 </head>
-
 <body>
+  <main class="app-shell">
+    <header class="hero">
+      <div class="brand-mark" aria-hidden="true">
+        <span>⚽</span>
+      </div>
+      <div>
+        <p class="eyebrow">SAMNANGER • LAGVERKTØY</p>
+        <h1>LagShuffler</h1>
+        <p class="hero-copy">Lag jevne lag på sekunder – med nivå, posisjoner og lånespillere.</p>
+      </div>
+    </header>
 
-  <h1>⚽ LagShuffler</h1>
+    <section class="stats-strip" aria-label="Oversikt">
+      <div class="stat-card">
+        <span class="stat-label">Valgt</span>
+        <strong id="selectedStat">0</strong>
+        <span>spillere</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Lån</span>
+        <strong id="guestStat">0</strong>
+        <span>midlertidige</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Lag</span>
+        <strong id="teamStat">2</strong>
+        <span>planlagt</span>
+      </div>
+    </section>
 
-<div class="controls">
+    <section class="panel setup-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">OPPSETT</p>
+          <h2>Lagoppsett</h2>
+        </div>
+        <span class="status-dot">Balansert</span>
+      </div>
 
-  <label for="teamCount">Antall lag</label>
-  <select id="teamCount"></select>
+      <div class="field-grid">
+        <label class="field" for="teamCount">
+          <span>Antall lag</span>
+          <select id="teamCount"></select>
+        </label>
+      </div>
 
+      <div class="action-row">
+        <button id="generateBtn" class="primary-action" type="button">
+          <span>Generer lag</span>
+          <span aria-hidden="true">→</span>
+        </button>
+        <button id="resetBtn" class="secondary" type="button">Nullstill</button>
+      </div>
 
+      <div class="player-section">
+        <button class="player-toggle" id="playerToggle" type="button" aria-expanded="false">
+          <span class="toggle-copy">
+            <span class="toggle-title">Velg spillere</span>
+            <small id="playerToggleMeta">0 valgt</small>
+          </span>
+          <span class="chevron" aria-hidden="true">⌄</span>
+        </button>
+        <div id="playerList" class="player-list"></div>
+      </div>
+    </section>
 
-  <button id="generateBtn">Generer lag</button>
-  <button id="resetBtn" class="secondary">Nullstill</button>
-  <div style="text-align:center; margin: 24px 0;">
-  <button id="startTournamentBtn" style="display:none;">
-    Start turnering
-  </button>
-</div>
+    <section class="panel guest-panel">
+      <div class="panel-heading guest-heading">
+        <div>
+          <p class="eyebrow">LÅNESPILLERE</p>
+          <h2>Midlertidige spillere</h2>
+          <p class="panel-copy">Legges bare til i denne nettleserøkten og påvirker lagbalansen som vanlige spillere.</p>
+        </div>
+        <button id="clearGuestsBtn" class="text-button" type="button" hidden>Fjern alle</button>
+      </div>
 
+      <form id="guestPlayerForm" class="guest-form">
+        <label class="field guest-name-field" for="guestName">
+          <span>Navn</span>
+          <input id="guestName" name="guestName" type="text" maxlength="40" autocomplete="off" placeholder="F.eks. Jonas" required />
+        </label>
 
-  <!-- 🔽 FLYTT HIT – INNI .controls -->
-  <div class="player-section">
-    <button
-      class="player-toggle"
-      id="playerToggle"
-      aria-expanded="false"
-    >
-      Velg spillere
-      <span class="chevron">▾</span>
-    </button>
+        <label class="field" for="guestLevel">
+          <span>Nivå <strong id="guestLevelValue">6</strong></span>
+          <input id="guestLevel" name="guestLevel" type="range" min="1" max="11" value="6" step="1" />
+        </label>
 
-    <div id="playerList" class="player-list"></div>
-  </div>
+        <label class="field" for="guestPosition">
+          <span>Posisjon</span>
+          <select id="guestPosition" name="guestPosition">
+            <option value="">Valgfri / ukjent</option>
+            <option value="Keeper">Keeper</option>
+            <option value="Forsvar">Forsvar</option>
+            <option value="Midtbane">Midtbane</option>
+            <option value="Spiss">Spiss</option>
+          </select>
+        </label>
 
-</div>
+        <button class="add-guest-button" type="submit">
+          <span aria-hidden="true">＋</span>
+          Legg til spiller
+        </button>
+      </form>
 
-<!-- behold denne utenfor -->
-<div id="generatedTeams"></div>
+      <div id="guestRoster" class="guest-roster empty-state">
+        Ingen lånespillere lagt til ennå.
+      </div>
+    </section>
 
+    <section id="generatedTeams" class="teams-grid" aria-live="polite"></section>
 
+    <div class="tournament-action-wrap">
+      <button id="startTournamentBtn" class="tournament-button" type="button" hidden>
+        <span>🏆</span>
+        Start turnering
+      </button>
+    </div>
+  </main>
 
-  <!-- Scripts -->
   <script src="players.js"></script>
   <script src="generator.js"></script>
   <script src="app.js"></script>
-
 </body>
 </html>
