@@ -1,11 +1,12 @@
 {
   "name": "LagShuffler",
   "short_name": "LagShuffler",
-  "description": "En app for å generere jevne og balanserte fotballag.",
-  "start_url": "index.html",
+  "description": "Lag jevne og balanserte fotballag med nivå, posisjoner og lånespillere.",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#3a7afe",
+  "background_color": "#06101d",
+  "theme_color": "#08111f",
   "icons": [
     {
       "src": "icon-192.png",
